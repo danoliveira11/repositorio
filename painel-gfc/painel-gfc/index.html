@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sotreq | Fleet Performance Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+/* ============================================================
+   SOTREQ — PAINEL DE PERFORMANCE DE FROTA
+   Paleta corporativa: Amarelo Cat/Sotreq, Preto, Grafite, Branco
+   ============================================================ */
+@page{size:A4 portrait;margin:12mm 10mm;}
+:root{
+  --sotreq-yellow:#FFC72C;
+  --sotreq-yellow-dark:#E6A800;
+  --black:#151515;
+  --graphite:#232323;
+  --graphite-2:#2f2f2f;
+  --gray-900:#1c1c1e;
+  --gray-700:#4a4a4c;
+  --gray-500:#7a7a7d;
+  --gray-300:#c9c9cc;
+  --gray-100:#eef0f2;
+  --border-light:#dcdde0;
+  --bg:#f2f3f5;
+  --card:#ffffff;
+  --good:#1e8e5a;
+  --good-bg:#e7f6ee;
+  --warn:#c98a00;
+  --warn-bg:#fff3dc;
+  --bad:#c62d3c;
+  --bad-bg:#fdecee;
+  --shadow-sm:0 3px 10px rgba(20,20,20,.07), 0 1px 3px rgba(20,20,20,.05);
+  --shadow-md:0 10px 28px rgba(20,20,20,.12), 0 2px 8px rgba(20,20,20,.06);
+  --shadow-lg:0 22px 48px rgba(20,20,20,.18), 0 6px 16px rgba(20,20,20,.08);
+  --radius:18px;
+  --radius-sm:11px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Roboto',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+  background:var(--bg);
+  color:var(--gray-900);
+  -webkit-font-smoothing:antialiased;
+}
+::-webkit-scrollbar{height:10px;width:10px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:10px;}
+::-webkit-scrollbar-thumb:hover{background:var(--gray-500);}
+
+/* ---------- TOPBAR ---------- */
+.topbar{
+  background:linear-gradient(180deg,var(--black) 0%,var(--graphite) 100%);
+  color:#fff;
+  position:sticky;top:0;z-index:50;
+  box-shadow:var(--shadow-md);
+}
+.topbar-inner{
+  max-width:1500px;margin:0 auto;padding:26px 28px;
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+}
+.brand{display:flex;align-items:center;gap:18px;}
+.brand-badge{
+  display:flex;align-items:stretch;border-radius:6px;overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,.4);
+  font-weight:900;font-size:21px;letter-spacing:.5px;
+}
+.brand-badge .b-sotreq{background:var(--sotreq-yellow);color:var(--black);padding:8px 14px;}
+.brand-badge .b-cat{background:var(--black);color:var(--sotreq-yellow);padding:8px 12px;border-left:2px solid var(--sotreq-yellow);}
+.brand-titles{line-height:1.2;}
+.brand-titles .t1{font-size:21px;font-weight:700;color:#fff;}
+.brand-titles .t2{font-size:13px;color:var(--sotreq-yellow);font-weight:600;letter-spacing:.03em;margin-top:3px;}
+.topbar-meta{display:flex;align-items:center;gap:26px;}
+.topbar-meta .meta-item{text-align:right;}
+.topbar-meta .meta-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#9d9d9f;}
+.topbar-meta .meta-value{font-size:14px;font-weight:600;color:#fff;}
+.topbar-meta .meta-responsavel{border-left:1px solid rgba(255,255,255,.15);padding-left:22px;}
+.badge-status{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,199,44,.14);border:1px solid rgba(255,199,44,.4);
+  color:var(--sotreq-yellow);padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;
+}
+.badge-status::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--sotreq-yellow);box-shadow:0 0 0 3px rgba(255,199,44,.25);}
+.btn-print{
+  background:var(--sotreq-yellow);color:var(--black);border:none;cursor:pointer;
+  font-family:inherit;font-weight:700;font-size:12.5px;padding:9px 16px;
+  border-radius:20px;white-space:nowrap;transition:background .15s;
+}
+.btn-print:hover{background:var(--sotreq-yellow-dark);}
+
+/* ---------- LAYOUT ---------- */
+.container{max-width:1500px;margin:0 auto;padding:24px 28px 60px;}
+
+.section-title{
+  display:flex;align-items:center;gap:14px;
+  margin:34px 0 14px;
+}
+.section-title .bar{display:none;}
+.section-title h2{flex:1;margin:0;}
+.section-title .hint{font-size:12px;color:var(--gray-500);font-weight:400;white-space:nowrap;}
+
+.section-title h2,
+.panel-head h3{
+  display:block;width:100%;box-sizing:border-box;margin:0;
+  font-size:16px;font-weight:800;color:#fff;letter-spacing:.01em;
+  background:linear-gradient(90deg, var(--black) 0%, var(--gray-700) 45%, rgba(74,74,76,0) 100%);
+  padding:13px 20px;border-radius:10px;
+  box-shadow:0 4px 14px rgba(20,20,20,.12);
+}
+.panel-head h3{font-size:15px;padding:11px 18px;}
+
+/* ---------- FILTER BAR ---------- */
+.filters{
+  background:var(--card);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);border:1px solid #e7e8ea;
+  padding:18px 22px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;
+  margin-top:20px;
+}
+.filter-field{display:flex;flex-direction:column;gap:6px;min-width:170px;flex:1;}
+.filter-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);}
+.filter-field .field-control{position:relative;display:flex;align-items:center;}
+.filter-field .field-control > select,.filter-field .field-control > input{
+  border:1.5px solid #e1e2e5;border-radius:var(--radius-sm);padding:9px 10px 9px 30px;
+  font-size:13.5px;font-family:inherit;color:var(--gray-900);background:#fff;
+  transition:border-color .15s, box-shadow .15s;width:100%;
+}
+.filter-field .field-control > select:focus,.filter-field .field-control > input:focus{
+  outline:none;border-color:var(--sotreq-yellow-dark);box-shadow:0 0 0 3px rgba(255,199,44,.25);
+}
+.field-clear{
+  position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  width:20px;height:20px;border-radius:50%;border:none;background:var(--gray-100);color:var(--gray-500);
+  font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .15s, background .15s, color .15s;z-index:2;
+}
+.field-clear.show{opacity:1;pointer-events:auto;}
+.field-clear:hover{background:var(--bad);color:#fff;}
+input[type="date"]::-webkit-clear-button{display:none;}
+input[type="date"]::-webkit-inner-spin-button{display:none;}
+
+/* ---------- MULTISELECT (Equipamento) ---------- */
+.multiselect{position:relative;}
+.ms-toggle{
+  width:100%;text-align:left;border:1.5px solid #e1e2e5;border-radius:var(--radius-sm);
+  padding:9px 10px 9px 30px;font-size:13.5px;font-family:inherit;color:var(--gray-900);background:#fff;
+  cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  transition:border-color .15s, box-shadow .15s;
+}
+.ms-toggle:hover{border-color:var(--gray-300);}
+.ms-toggle.open{border-color:var(--sotreq-yellow-dark);box-shadow:0 0 0 3px rgba(255,199,44,.25);}
+.ms-toggle span#fEquipLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ms-caret{color:var(--gray-500);font-size:11px;flex-shrink:0;}
+.ms-panel{
+  display:none;position:absolute;top:calc(100% + 6px);left:0;width:340px;max-width:calc(100vw - 60px);z-index:30;
+  background:var(--card);border:1px solid #e1e2e5;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);
+  padding:14px;
+}
+.ms-panel.open{display:block;}
+.ms-search{position:relative;}
+.ms-search input{
+  width:100%;border:1.5px solid #e1e2e5;border-radius:8px;padding:8px 10px 8px 30px;font-size:12.5px;font-family:inherit;
+  background:var(--gray-100) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="%237a7a7d" stroke-width="2"><circle cx="6" cy="6" r="5"/><line x1="10" y1="10" x2="13" y2="13"/></svg>') no-repeat 9px center;
+}
+.ms-search input:focus{outline:none;border-color:var(--sotreq-yellow-dark);background-color:#fff;}
+.ms-actions{display:flex;justify-content:space-between;align-items:center;margin:10px 0 8px;padding:0 2px;}
+.ms-link{background:none;border:none;color:var(--sotreq-yellow-dark);font-size:11px;font-weight:700;cursor:pointer;padding:2px 0;text-transform:uppercase;letter-spacing:.03em;}
+.ms-link:hover{text-decoration:underline;}
+.ms-count{font-size:10.5px;color:var(--gray-500);font-weight:600;}
+.ms-options{
+  max-height:240px;overflow-y:auto;border-top:1px solid var(--gray-100);padding:8px 2px 2px;
+  display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;
+}
+.ms-option{display:flex;align-items:center;gap:7px;padding:6px 6px;border-radius:6px;font-size:12px;cursor:pointer;min-width:0;}
+.ms-option:hover{background:var(--gray-100);}
+.ms-option input{margin:0;flex-shrink:0;accent-color:var(--sotreq-yellow-dark);cursor:pointer;width:14px;height:14px;}
+.ms-option span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ms-option.hidden{display:none;}
+.ms-empty{padding:16px;text-align:center;color:var(--gray-500);font-size:12px;grid-column:1/-1;}
+
+.filter-actions{display:flex;gap:10px;}
+.btn{
+  border:none;border-radius:var(--radius-sm);padding:9px 18px;font-size:13.5px;font-weight:700;
+  cursor:pointer;transition:transform .1s, box-shadow .15s;white-space:nowrap;
+}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--sotreq-yellow);color:var(--black);box-shadow:var(--shadow-sm);}
+.btn-primary:hover{background:var(--sotreq-yellow-dark);}
+.btn-ghost{background:transparent;color:var(--gray-700);border:1.5px solid #e1e2e5;}
+.btn-ghost:hover{background:var(--gray-100);}
+
+/* ---------- KPI CARDS ---------- */
+.kpi-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-top:18px;
+}
+.kpi-card{
+  background:#fff;border:1px solid #e7e8ea;border-radius:20px;padding:20px 20px 18px;min-height:172px;
+  box-shadow:var(--shadow-sm);position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;
+  transition:box-shadow .25s, transform .25s;
+}
+.kpi-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px);}
+.kpi-heading{display:flex;align-items:flex-start;gap:12px;}
+.kpi-icon{
+  flex:0 0 auto;width:28px;height:28px;color:var(--gray-700);
+  display:flex;align-items:center;justify-content:center;
+}
+.kpi-icon svg{width:26px;height:26px;display:block;}
+.kpi-name-full{font-size:15px;font-weight:600;color:var(--black);line-height:1.32;padding-top:2px;}
+.pill-good{background:var(--good-bg);color:var(--good);}
+.pill-warn{background:var(--warn-bg);color:var(--warn);}
+.pill-bad{background:var(--bad-bg);color:var(--bad);}
+.kpi-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:14px;}
+.kpi-value{font-size:23px;font-weight:800;color:var(--black);letter-spacing:-.01em;}
+.kpi-value.kpi-value-sm{font-size:18px;}
+.kpi-value small{font-size:13px;font-weight:700;color:var(--gray-500);}
+.kpi-status{font-size:12px;font-weight:700;white-space:nowrap;}
+.kpi-status.pill-good{background:none;color:var(--good);}
+.kpi-status.pill-warn{background:none;color:var(--warn);}
+.kpi-status.pill-bad{background:none;color:var(--bad);}
+.kpi-meta-row{margin-top:16px;}
+.kpi-meta-label{font-size:11.5px;color:var(--gray-500);font-weight:600;}
+.kpi-bar{position:relative;height:3px;border-radius:3px;background:var(--gray-100);margin-top:8px;}
+.kpi-bar-fill{height:100%;border-radius:3px;background:var(--black);transition:width .4s ease;}
+
+/* ---------- CHARTS ---------- */
+.grid-2{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;margin-top:18px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px;}
+
+/* Mosaico assimétrico (bento): hero + tile em cima, tile + hero embaixo,
+   em vez de duas linhas simétricas 1.6fr/1fr. */
+.bento-grid{
+  display:grid;gap:16px;margin-top:18px;align-items:start;
+  grid-template-columns:1fr;
+}
+.panel{
+  background:var(--gray-100);border-radius:var(--radius);padding:20px 22px 14px;
+  box-shadow:var(--shadow-md);transition:box-shadow .25s, transform .25s;
+}
+.panel:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.panel-head>div:first-child{flex:1;min-width:0;}
+.panel-head .sub{font-size:11.5px;color:var(--gray-500);margin-top:6px;}
+.legend-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+.chart-wrap{position:relative;height:270px;background:#fff;border-radius:12px;padding:10px;overflow:hidden;}
+.chart-wrap.small{height:230px;}
+
+.trend-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+.trend-item-legend{display:flex;gap:14px;font-size:11.5px;font-weight:600;color:var(--gray-700);margin-bottom:10px;justify-content:center;align-items:center;}
+.trend-item-body{display:flex;gap:18px;align-items:stretch;}
+.trend-item-chart-col{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;}
+.chart-wrap.trend-mini{height:240px;}
+.chart-wrap.trend-mini.downtime-mini{height:190px;}
+.pm-status-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-top:18px;}
+.pm-status-card{background:#fff;border:1.5px solid var(--border-light);border-radius:14px;padding:16px 12px;text-align:center;}
+.pm-status-value{font-size:30px;font-weight:800;line-height:1;color:var(--black);}
+.pm-status-label{font-size:11.5px;color:var(--gray-500);font-weight:600;margin-top:6px;}
+.pm-status-card.bad .pm-status-value{color:var(--bad);}
+.pm-status-card.good .pm-status-value{color:var(--good);}
+.pm-status-card.warn .pm-status-value{color:var(--warn);}
+.pm-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-top:18px;}
+.chart-wrap.pm-chart{height:230px;margin-top:10px;}
+@media(max-width:1100px){.pm-grid{grid-template-columns:1fr;} .pm-status-grid{grid-template-columns:1fr;}}
+.downtime-sub-title{font-size:11px;font-weight:700;color:var(--gray-700);text-align:center;margin-bottom:6px;}
+.downtime-sub-title:not(:first-child){margin-top:14px;}
+.downtime-sub-meta{font-weight:500;color:var(--gray-500);font-size:10px;}
+.meta-days-block{flex:0 0 240px;display:flex;flex-direction:column;justify-content:center;}
+.trend-item-side{flex:0 0 240px;display:flex;flex-direction:column;justify-content:center;gap:12px;}
+.trend-item-side .meta-days-block{flex:none;}
+.mtbf-accum-card{background:#fff;border:1.5px solid var(--border-light);border-radius:14px;padding:12px 10px;text-align:center;}
+.mtbf-accum-value{font-size:20px;font-weight:800;line-height:1;color:var(--black);}
+.mtbf-accum-label{font-size:10px;color:var(--gray-500);font-weight:600;margin-top:5px;}
+/* Barra unica (mesmo estilo da faixa de Composicao das Horas) no lugar do
+   velocimetro do MTBF -- mais compacta e nao "estica" quando o card fica
+   largo (Corretivas/Downtime empilhados ocupam a largura toda no PDF). */
+.mtbf-bar-wrap{position:relative;padding-top:18px;margin-top:8px;}
+.mtbf-bar-track{height:14px;border-radius:7px;background:var(--gray-100);overflow:hidden;}
+.mtbf-bar-fill{height:100%;border-radius:7px;transition:width .4s ease;}
+.legend-dash{display:inline-block;width:14px;border-top:2px dashed var(--gray-500);margin-right:5px;vertical-align:middle;}
+.meta-days-header{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  text-align:center;font-size:11px;font-weight:700;color:var(--gray-700);margin-bottom:10px;
+}
+.meta-days-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.meta-days-row:last-child{margin-bottom:0;}
+.days-card{background:#fff;border:1.5px solid var(--border-light);border-radius:14px;padding:12px 6px;text-align:center;}
+.days-value{font-size:22px;font-weight:800;line-height:1;color:var(--black);}
+.days-label{font-size:10.5px;color:var(--gray-500);font-weight:600;margin-top:5px;}
+.days-card.good .days-value{color:var(--good);}
+.days-card.bad .days-value{color:var(--bad);}
+@media(max-width:900px){
+  .trend-item-body{flex-direction:column;}
+  .meta-days-block{flex:none;width:100%;margin-top:14px;}
+  .trend-item-side{flex:none;width:100%;margin-top:14px;}
+}
+
+.composicao-strip-wrap{position:relative;padding-top:22px;}
+.composicao-strip{display:flex;height:56px;border-radius:12px;overflow:hidden;background:#fff;}
+.composicao-seg{display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;}
+.composicao-target{
+  position:absolute;top:0;bottom:0;width:2px;background:var(--black);
+  transform:translateX(-1px);
+}
+.composicao-target span{
+  position:absolute;top:0;left:4px;font-size:10.5px;font-weight:700;color:var(--black);white-space:nowrap;
+}
+.composicao-target::after{
+  content:'';position:absolute;bottom:0;left:-4px;width:0;height:0;
+  border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:6px solid var(--black);
+}
+.composicao-legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;font-size:11.5px;color:var(--gray-700);}
+
+/* ---------- TABLE ---------- */
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid #e7e8ea;background:var(--card);box-shadow:var(--shadow-sm);margin-top:18px;}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:920px;}
+thead th{
+  background:var(--graphite);color:#fff;text-align:left;padding:12px 14px;font-weight:600;
+  font-size:11px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;cursor:pointer;user-select:none;
+  white-space:nowrap;
+}
+thead th:hover{background:#3a3a3a;}
+thead th.sorted::after{content:' ▾';color:var(--sotreq-yellow);}
+thead th.sorted-asc::after{content:' ▴';color:var(--sotreq-yellow);}
+tbody tr{border-bottom:1px solid #eef0f2;}
+tbody tr:hover{background:#fbfaf5;}
+tbody td{padding:10px 14px;color:var(--gray-900);white-space:nowrap;}
+tbody td.num{text-align:right;font-variant-numeric:tabular-nums;}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;}
+.tag-good{background:var(--good-bg);color:var(--good);}
+.tag-warn{background:var(--warn-bg);color:var(--warn);}
+.tag-bad{background:var(--bad-bg);color:var(--bad);}
+
+/* ---------- FOOTER ---------- */
+.footer{
+  margin-top:40px;padding:22px 28px;border-top:1px solid #e2e3e6;
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+  color:var(--gray-500);font-size:11.5px;max-width:1500px;margin-left:auto;margin-right:auto;
+}
+.footer strong{color:var(--gray-700);}
+
+/* ---------- HEATMAP ---------- */
+/* Ranking em 3 colunas (CSS multi-column) em vez de uma lista longa de 1
+   coluna -- mesma informação, ~1/3 da altura. */
+.heatmap-wrap{column-count:3;column-gap:22px;}
+/* --heat-scale: multiplicador vertical (1 = tamanho normal). Reduzido via
+   JS (ajustarParaA4) somente quando o mapa nao cabe inteiro no espaco que
+   sobra na folha 1 -- evita que um resto vaze para a folha 2. So encolhe
+   altura/fonte, nunca largura, entao a caixa nao fica desalinhada. */
+.heatmap-row{
+  display:grid;grid-template-columns:88px 1fr 40px;align-items:center;gap:7px;
+  break-inside:avoid;margin-bottom:calc(3px * var(--heat-scale, 1));
+}
+.heatmap-label{font-size:calc(10.5px * var(--heat-scale, 1));color:var(--gray-700);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.heatmap-cell{
+  height:calc(16px * var(--heat-scale, 1));border-radius:4px;position:relative;cursor:pointer;
+  transition:transform .12s, box-shadow .12s;
+}
+.heatmap-cell:hover{transform:scaleY(1.15);box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:2;}
+.heatmap-value{font-size:calc(10.5px * var(--heat-scale, 1));font-weight:700;text-align:right;color:var(--gray-900);font-variant-numeric:tabular-nums;}
+.heatmap-tooltip{
+  position:fixed;background:var(--black);color:#fff;padding:7px 11px;border-radius:7px;font-size:11.5px;
+  pointer-events:none;z-index:999;box-shadow:var(--shadow-lg);white-space:nowrap;opacity:0;transition:opacity .1s;
+}
+.heatmap-tooltip.show{opacity:1;}
+.heatmap-scale{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:10.5px;color:var(--gray-500);}
+.heatmap-scale .scale-bar{flex:1;height:8px;border-radius:6px;background:linear-gradient(90deg,#c62d3c,#c98a00,#FFC72C,#1e8e5a);}
+
+/* Empty state */
+.empty-state{padding:60px 20px;text-align:center;color:var(--gray-500);font-size:13px;}
+
+/* Data source note */
+.note{
+  display:flex;gap:10px;align-items:flex-start;background:#fff;border-left:3px solid var(--sotreq-yellow);
+  padding:12px 16px;border-radius:0 8px 8px 0;font-size:12px;color:var(--gray-700);margin-top:20px;
+}
+
+/* ---------- MAINTENANCE HISTORY ---------- */
+.maintenance-list{display:flex;flex-direction:column;gap:10px;max-height:600px;overflow-y:auto;}
+.maintenance-item{
+  display:grid;grid-template-columns:120px 1fr 1fr 80px;gap:12px;align-items:center;
+  padding:12px 14px;border-left:4px solid var(--sotreq-yellow);background:#fafafa;
+  border-radius:6px;transition:all .2s;cursor:pointer;
+}
+.maintenance-item:hover{background:#f5f5f5;box-shadow:0 2px 6px rgba(0,0,0,.08);}
+.maintenance-item.preventiva{border-left-color:#1e8e5a;}
+.maintenance-item.corretiva{border-left-color:#c62d3c;}
+.maint-equipment{font-weight:700;color:var(--black);font-size:12.5px;}
+.maint-desc{font-size:11.5px;color:var(--gray-700);line-height:1.4;}
+.maint-time{font-size:11px;color:var(--gray-500);white-space:nowrap;}
+.maint-type{
+  display:inline-block;padding:3px 9px;border-radius:4px;font-size:10.5px;font-weight:600;
+  white-space:nowrap;
+}
+.maint-type.preventiva{background:#e7f6ee;color:#1e8e5a;}
+.maint-type.corretiva{background:#fdecee;color:#c62d3c;}
+.maintenance-item.expandable{cursor:pointer;position:relative;}
+.maintenance-item.expandable::after{content:'';position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;}
+.maintenance-details{font-size:10.5px;color:var(--gray-500);margin-top:6px;padding-top:8px;border-top:1px solid #ddd;}
+.loading{text-align:center;padding:40px;color:var(--gray-500);font-size:13px;}
+
+/* ---------- CRITICAL EQUIPMENT ---------- */
+.equipment-critical-section{margin-top:0;}
+.critical-list{display:flex;flex-direction:column;gap:20px;}
+
+.critical-item{
+  border-radius:var(--radius);padding:20px;background:var(--gray-100);
+  box-shadow:var(--shadow-md);transition:box-shadow .25s, transform .25s;
+}
+.critical-item:hover{box-shadow:var(--shadow-lg);transform:translateY(-3px);}
+
+.critical-rank{
+  flex:0 0 auto;display:inline-block;width:32px;height:32px;
+  border-radius:50%;background:var(--sotreq-yellow);color:var(--black);
+  font-weight:700;font-size:14px;text-align:center;line-height:32px;
+}
+
+.critical-header{
+  display:flex;align-items:center;gap:12px;margin-bottom:14px;
+}
+.critical-name{font-size:16px;font-weight:700;color:var(--black);}
+.critical-model{font-size:12px;color:var(--gray-500);}
+
+.critical-top{
+  display:flex;gap:24px;align-items:flex-start;margin-bottom:18px;
+}
+.critical-metrics{
+  flex:0 0 130px;display:flex;flex-direction:column;gap:10px;
+}
+.critical-metric{
+  background:#fff;padding:9px 12px;border-radius:10px;border-left:3px solid var(--sotreq-yellow);
+}
+.critical-metric-value{font-size:16px;font-weight:700;color:var(--black);}
+.critical-metric-label{font-size:9px;color:var(--gray-500);text-transform:uppercase;margin-top:2px;}
+.critical-metric.gauge-metric{text-align:center;padding-top:6px;padding-bottom:6px;}
+.gauge-svg{width:100%;height:auto;display:block;}
+.gauge-value{font-size:15px;font-weight:800;color:var(--black);margin-top:-8px;line-height:1;}
+
+.critical-divider{flex:0 0 2px;background:var(--sotreq-yellow);align-self:stretch;}
+
+.critical-offenders{flex:1;min-width:0;}
+.critical-offenders-title{font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:10px;text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+/* Ofensores agora ocupam a largura toda que sobra ao lado das metricas
+   (o grafico diario saiu da linha, foi pra baixo) -- em grid em vez de
+   lista, pra nao esticar cada item numa linha unica e vazia. */
+.critical-offenders-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:8px;}
+
+/* Performance Diaria (DF/UF): agora bloco de largura total, acima do
+   Pareto, em vez de coluna estreita ao lado dos ofensores. */
+.critical-daily-section{width:100%;margin-bottom:18px;}
+.critical-daily-title{font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:10px;text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+.critical-daily-chart-wrap{position:relative;width:100%;height:260px;background:#fff;border-radius:12px;padding:10px;}
+
+/* Nome em cima (quebra linha se precisar) e estatisticas embaixo -- com 3
+   ofensores lado a lado no grid, cada card fica estreito demais pra caber
+   nome comprido ("Preventiva Sistematica") e numeros na mesma linha sem
+   truncar com reticencias. */
+.offender-item{
+  display:flex;flex-direction:column;gap:6px;
+  padding:9px 12px;background:#fff;border-radius:10px;
+  border-left:3px solid #ccc;overflow:hidden;
+}
+.offender-item.critical{border-left-color:#c62d3c;}
+.offender-item.warning{border-left-color:#c98a00;}
+
+.offender-name{
+  font-size:12px;font-weight:600;color:var(--black);
+  white-space:normal;line-height:1.3;
+}
+.offender-stats{
+  display:flex;gap:16px;align-items:center;justify-content:flex-end;font-size:11px;
+}
+.offender-stat{display:flex;flex-direction:column;gap:2px;text-align:right;}
+.offender-stat-value{font-weight:700;color:var(--black);}
+.offender-stat-label{color:var(--gray-500);text-transform:uppercase;}
+
+.setor-section{
+  margin-top:18px;padding-top:14px;border-top:1px solid #ddd;
+}
+.setor-grid{
+  display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:18px;
+}
+.setor-block{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;box-shadow:var(--shadow-md);transition:box-shadow .25s, transform .25s;}
+.setor-block:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
+.setor-banner{
+  background:linear-gradient(135deg, var(--sotreq-yellow) 0%, var(--sotreq-yellow-dark) 100%);
+  color:var(--black);font-weight:700;font-size:12px;letter-spacing:.02em;text-transform:uppercase;
+  text-align:center;padding:10px 12px;
+}
+.setor-chart-wrap{
+  position:relative;height:230px;background:#fff;
+  padding:12px 8px 4px;
+}
+
+.offender-item.empty{
+  border-left-color:#ddd;background:#fff;color:var(--gray-500);
+  padding:12px;text-align:center;font-size:12px;font-style:italic;
+  justify-content:center;
+}
+
+.setor-empty{
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;color:var(--gray-500);font-size:12px;font-style:italic;
+}
+
+/* ---------- RECOMENDAÇÃO TÉCNICA ---------- */
+.recommendation-section{margin-top:18px;padding-top:14px;border-top:1px solid #ddd;}
+.recommendation-title{
+  font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:10px;
+  text-transform:uppercase;display:flex;align-items:center;gap:6px;
+}
+.recommendation-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:14px;}
+.recommendation-card{
+  background:#fff;border-left:3px solid var(--sotreq-yellow-dark);border-radius:10px;
+  padding:12px 14px;
+}
+.recommendation-setor{font-size:11px;font-weight:700;color:var(--black);text-transform:uppercase;margin-bottom:5px;}
+.recommendation-text{font-size:12px;line-height:1.5;color:var(--gray-700);}
+
+/* ---------- COMPONENTS HOTSHEET ---------- */
+/* Grid fixo de 9 cards (um por componente monitorado) -- sem rolagem, altura
+   previsível, pensado para relatório impresso/PDF: mesma "grade" em todo
+   equipamento, com as posições (LD/LE/DD/TD...) agrupadas dentro do card. */
+.components-section{margin-top:18px;padding-top:14px;border-top:1px solid #ddd;}
+.components-title{
+  font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:10px;
+  text-transform:uppercase;display:flex;align-items:center;gap:6px;
+}
+.components-grid{
+  display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;
+}
+.component-card{
+  background:#fff;border-radius:10px;padding:8px 10px;
+}
+.component-card-name{
+  font-size:11px;font-weight:700;color:var(--gray-700);text-transform:uppercase;
+  letter-spacing:.01em;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.component-positions{display:flex;flex-direction:column;gap:6px;}
+/* Faixa (barra de progresso) por posicao, preenchida ate a % de vida util
+   -- mesmo estilo das outras barras do painel (Composicao, MTBF), no lugar
+   do chip/pill que so mostrava o numero. */
+.component-item-row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:11px;font-weight:700;color:var(--gray-700);margin-bottom:3px;
+}
+.component-item-pos{text-transform:uppercase;letter-spacing:.01em;}
+.component-item-pct{font-variant-numeric:tabular-nums;}
+.component-item-pct.good{color:#1e8e5a;}
+.component-item-pct.warn{color:#c98a00;}
+.component-item-pct.bad{color:#c62d3c;}
+.component-bar-track{height:6px;border-radius:3px;background:var(--gray-100);overflow:hidden;}
+.component-bar-fill{height:100%;border-radius:3px;}
+.component-bar-fill.good{background:#1e8e5a;}
+.component-bar-fill.warn{background:#c98a00;}
+.component-bar-fill.bad{background:#c62d3c;}
+.component-item-empty{font-size:10px;color:var(--gray-500);font-style:italic;}
+
+@media print{
+  /* ============================================================
+     0. AJUSTE AUTOMATICO A FOLHA A4
+     ------------------------------------------------------------
+     O painel foi desenhado para ~1500px de largura. A area util de
+     uma A4 retrato tem so ~733px (210mm - 2x8mm de margem). Quando o
+     Chrome tenta encaixar o layout nessa largura, o que sobra e
+     simplesmente CORTADO -- e isso que "come" as bordas.
+
+     Em vez de espremer, o painel e montado numa largura virtual fixa
+     (--fit-base) e depois reduzido inteiro com `zoom`. Diferente de
+     `transform:scale()`, o `zoom` REFLUI o layout, entao a quebra de
+     pagina continua sendo calculada certo e nada fica cortado.
+
+     --fit-zoom ja vem com o valor estatico correto (718/980), ou seja,
+     o encaixe funciona mesmo se o JS nao rodar. A funcao
+     ajustarParaA4() apenas refina: recalcula o zoom se algum bloco
+     estourar a largura, redimensiona os graficos e reduz um pouco mais
+     qualquer bloco alto demais para caber na folha.
+     ============================================================ */
+  html{
+    --fit-base:980px;
+    --fit-zoom:0.7327;
+  }
+  .topbar,.container{
+    width:var(--fit-base);
+    max-width:var(--fit-base);
+    margin:0 auto;
+    zoom:var(--fit-zoom);
+  }
+  .container{padding:0 0 6px;}
+  .topbar-inner{max-width:none;padding:16px 6px;}
+  html,body{background:#fff;width:auto;overflow:visible;}
+
+  /* trava geral: nada pode ultrapassar a caixa do proprio pai */
+  canvas,svg,img{max-width:100%;}
+  .table-wrap{overflow:visible;}
+  table{min-width:0;}
+
+  /* ------------------------------------------------------------
+     1. Cores/gradientes de fundo sao ignorados pelo Chrome/Edge a
+     menos que "Graficos de segundo plano" esteja marcado no dialogo
+     de impressao -- isto garante que o navegador RESPEITE a marcacao.
+     ------------------------------------------------------------ */
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+
+  /* ------------------------------------------------------------
+     2. Esconde o que so faz sentido na tela e tira sombra/hover.
+     ------------------------------------------------------------ */
+  .btn-print,.filters{display:none !important;}
+  .topbar{position:static;box-shadow:none;}
+  .panel,.kpi-card,.critical-item,.setor-block,
+  .panel:hover,.kpi-card:hover,.critical-item:hover,.setor-block:hover{
+    box-shadow:none !important;transform:none !important;
+  }
+  /* sem sombra, um contorno leve devolve a separacao dos cartoes */
+  .panel,.critical-item{border:1px solid var(--border-light);}
+  /* fundo cinza claro dos cartoes so faz sentido na tela -- na
+     impressao vira branco pra economizar tinta */
+  .panel,.critical-item{background:#fff;}
+
+  /* ------------------------------------------------------------
+     3. Nunca cortar um cartao/linha ao meio entre duas paginas.
+     ------------------------------------------------------------ */
+  .kpi-card,.critical-item,.setor-block,.component-card,
+  .recommendation-card,.offender-item,.trend-item,
+  .meta-days-row,.days-card,.composicao-strip,
+  .pm-grid .panel,.pm-status-card,.mtbf-accum-card,
+  .setor-grid,.recommendation-grid,.components-grid,
+  .bento-comp{
+    page-break-inside:avoid;break-inside:avoid;
+  }
+  /* Mapa de Calor: SEM avoid no painel inteiro -- ele deve comecar no
+     rodape da folha 1 e continuar na folha 2 se nao couber tudo (cada
+     linha, .heatmap-row, ja tem break-inside:avoid no CSS base, entao
+     nenhum equipamento fica cortado ao meio -- so o painel como um
+     todo pode atravessar a quebra de pagina). Cantos arredondados nao
+     fragmentam bem no Chrome (a caixa "vaza" um pouco da folha no
+     ponto de corte) -- sem raio, a borda quebra limpa entre paginas. */
+  .bento-heat{border-radius:0 !important;}
+  .panel-head,.section-title{page-break-after:avoid;break-after:avoid;}
+  .section-title{margin:16px 0 10px;}
+  .panel{margin-bottom:14px;}
+
+  /* ------------------------------------------------------------
+     4. Paginacao: pagina 1 = Indicadores + Composicao + DF x UF +
+     Mapa de Calor (Mapa de Calor fica no rodape da 1a folha, dentro
+     do trend-grid) · pagina 2 = Corretivas e Downtime · pagina 3 =
+     Preventiva (3 graficos empilhados) · dai em diante, um caminhao
+     do Bandit por folha.
+     ------------------------------------------------------------ */
+  .corretivas-downtime-page{page-break-before:always;break-before:page;}
+  /* Corretivas+Downtime abrem a folha 2 -- padding extra no topo pra nao
+     ficar colado na margem (margin-top costuma ser ignorado pelo Chrome
+     logo apos uma quebra de pagina, por isso e padding e nao margin). */
+  .corretivas-downtime-page{padding-top:52px !important;}
+  .pm-section{page-break-before:always;break-before:page;}
+  .bandit-panel{page-break-before:always;break-before:page;}
+  .critical-item + .critical-item{page-break-before:always;break-before:page;}
+
+  /* ------------------------------------------------------------
+     5. IMPORTANTE: media query em impressao enxerga a largura FISICA
+     da folha (~733px), nao a largura virtual. Por isso os breakpoints
+     de celular (max-width:900/1100) disparavam sozinhos no PDF e
+     desmontavam o layout. Aqui o arranjo de tela e restaurado -- ele
+     cabe, porque tudo e reduzido junto pelo zoom.
+     ------------------------------------------------------------ */
+  .trend-item-body{flex-direction:row !important;}
+  .meta-days-block{flex:0 0 240px !important;width:auto !important;margin-top:0 !important;}
+  .trend-item-side{flex:0 0 240px !important;width:auto !important;margin-top:0 !important;}
+  /* Corretivas e Downtime: velocimetro/dias-dentro-fora vao para BAIXO do
+     grafico (empilhado) em vez de do lado -- mais espaco pro grafico e
+     pros cards, ao inves de espremidos numa coluna de 240px. */
+  .trend-item-corretivas .trend-item-body,
+  .trend-item-downtime .trend-item-body{
+    flex-direction:column !important;
+  }
+  .trend-item-corretivas .trend-item-side,
+  .trend-item-downtime .meta-days-block{
+    flex:none !important;width:100% !important;margin-top:14px !important;
+  }
+  /* Corretivas: MTBF acumulado + Corretivas acumuladas ficam lado a lado
+     com os dias dentro/fora da meta, numa unica linha abaixo do grafico
+     (ha largura de sobra agora que nao estao mais espremidos na coluna
+     de 240px). */
+  .trend-item-corretivas .trend-item-side{
+    flex-direction:row !important;align-items:stretch !important;gap:12px !important;
+  }
+  .trend-item-corretivas .mtbf-accum-card{
+    flex:1 1 0 !important;
+    display:flex !important;flex-direction:column !important;justify-content:center !important;
+  }
+  .trend-item-corretivas .trend-item-side .meta-days-block{
+    flex:1.7 1 0 !important;
+  }
+  /* Downtime: so tem os dias dentro/fora da meta, sozinhos -- ficaram
+     enormes ao herdar a largura cheia do painel empilhado, entao limita a
+     largura (fica centralizado) do jeito que era compacto na lateral. */
+  .trend-item-downtime .meta-days-block{
+    max-width:420px !important;margin-left:auto !important;margin-right:auto !important;
+  }
+  .trend-item-corretivas .days-card,
+  .trend-item-downtime .days-card{
+    padding:8px 6px !important;
+  }
+  .trend-item-corretivas .days-value,
+  .trend-item-downtime .days-value{
+    font-size:18px !important;
+  }
+  .kpi-grid{grid-template-columns:repeat(3,1fr) !important;}
+  .pm-status-grid{grid-template-columns:repeat(3,1fr) !important;}
+  /* PM: 3 graficos empilhados (1 coluna) em vez de lado a lado -- a secao
+     tem folha inteira so pra ela (regra 4 abaixo), entao empilhar da mais
+     visibilidade a cada grafico e usa a altura toda da pagina. */
+  .pm-grid{grid-template-columns:1fr !important;gap:12px !important;}
+  /* auto-fit em vez de repeat(3,1fr): quando tem so 1 ou 2 setores (Pareto)
+     ou recomendacoes, eles esticam pra ocupar a largura toda em vez de
+     deixar coluna(s) vazia(s) -- so cai pra 3 quando realmente ha 3 itens. */
+  .setor-grid,.recommendation-grid{grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)) !important;}
+  .critical-top{flex-direction:row !important;}
+  .critical-divider{display:block !important;}
+  .critical-metrics{flex:0 0 130px !important;width:auto !important;flex-direction:column !important;}
+  .critical-offenders{flex:1 !important;width:auto !important;}
+  .offender-name{font-size:11px !important;}
+  .offender-stats{gap:8px !important;font-size:10px !important;}
+  /* column-count balanceia mal entre paginas impressas -- grid quebra
+     em pontos previsiveis. */
+  .heatmap-wrap{column-count:unset;display:grid;grid-template-columns:repeat(4,1fr);gap:2px 18px;}
+
+  /* ------------------------------------------------------------
+     6. Compressao vertical: encaixe de cada secao numa folha fisica.
+     ------------------------------------------------------------ */
+  .chart-wrap.trend-mini{height:200px;}
+  /* DF x UF fica menor so na impressao: sobra espaco pro Mapa de Calor
+     caber inteiro (legenda de cores incluida) no rodape da folha 1. */
+  .trend-item-dfuf .chart-wrap.trend-mini{height:165px;}
+  .chart-wrap.trend-mini.downtime-mini{height:150px;}
+  .chart-wrap.pm-chart{height:250px;}
+  .pm-grid .panel{padding-bottom:10px;}
+  .setor-chart-wrap{height:170px;}
+  .critical-daily-chart-wrap{height:210px;}
+}
+
+/* ============================================================
+   ESPELHO DE TELA DO LAYOUT DE IMPRESSAO
+   ------------------------------------------------------------
+   O navegador so aplica as regras @media print DEPOIS do evento
+   beforeprint -- ou seja, na hora em que o JS mede a pagina, ela
+   ainda esta na largura da tela (~1500px). Como o Chart.js desenha
+   o canvas no tamanho que o container tem NAQUELE momento, os
+   graficos saiam esticados/cortados no PDF.
+
+   Esta classe (aplicada por ajustarParaA4()) obriga a pagina a
+   assumir a largura virtual da folha ANTES de imprimir, para que os
+   graficos sejam redesenhados no tamanho certo e as alturas possam
+   ser medidas de verdade. E removida no afterprint.
+   ============================================================ */
+html.preparando-impressao .topbar,
+html.preparando-impressao .container{
+  width:var(--fit-base,980px);
+  max-width:var(--fit-base,980px);
+  margin:0 auto;
+}
+html.preparando-impressao .filters{display:none;}
+html.preparando-impressao canvas,
+html.preparando-impressao svg,
+html.preparando-impressao img{max-width:100%;}
+html.preparando-impressao .trend-item-body{flex-direction:row;}
+/* Espelha a regra generica do @media print (linha "5." acima) que trava
+   o bloco de dias dentro/fora da meta em 240px -- sem ela, na simulacao
+   de tela o bloco (ex.: DF x UF) fica sem flex-basis definido e estica
+   para ocupar a linha inteira, empurrando o grafico ao lado para largura
+   zero. Como e nesse estado de tela que o grafico e fotografado antes de
+   imprimir, a foto saia com o grafico em branco -- essa regra faltando
+   era a causa. As excecoes de corretivas/downtime abaixo continuam
+   valendo por serem mais especificas. */
+html.preparando-impressao .meta-days-block{flex:0 0 240px;width:auto;margin-top:0;}
+html.preparando-impressao .corretivas-downtime-page{padding-top:52px;}
+html.preparando-impressao .trend-item-corretivas .trend-item-body,
+html.preparando-impressao .trend-item-downtime .trend-item-body{flex-direction:column;}
+html.preparando-impressao .trend-item-corretivas .trend-item-side,
+html.preparando-impressao .trend-item-downtime .meta-days-block{flex:none;width:100%;margin-top:14px;}
+html.preparando-impressao .trend-item-corretivas .trend-item-side{flex-direction:row;align-items:stretch;gap:12px;}
+html.preparando-impressao .trend-item-corretivas .mtbf-accum-card{flex:1 1 0;display:flex;flex-direction:column;justify-content:center;}
+html.preparando-impressao .trend-item-corretivas .trend-item-side .meta-days-block{flex:1.7 1 0;}
+html.preparando-impressao .trend-item-downtime .meta-days-block{max-width:420px;margin-left:auto;margin-right:auto;}
+html.preparando-impressao .trend-item-corretivas .days-card,
+html.preparando-impressao .trend-item-downtime .days-card{padding:8px 6px;}
+html.preparando-impressao .trend-item-corretivas .days-value,
+html.preparando-impressao .trend-item-downtime .days-value{font-size:18px;}
+html.preparando-impressao .critical-top{flex-direction:row;}
+html.preparando-impressao .critical-offenders{flex:1;width:auto;}
+html.preparando-impressao .offender-name{font-size:11px;}
+html.preparando-impressao .offender-stats{gap:8px;font-size:10px;}
+html.preparando-impressao .heatmap-wrap{column-count:unset;display:grid;grid-template-columns:repeat(4,1fr);gap:2px 18px;}
+/* mesmas alturas do bloco de impressao: assim o canvas ja nasce no
+   tamanho final e a medicao de altura dos blocos e a real. */
+html.preparando-impressao .chart-wrap.trend-mini{height:200px;}
+html.preparando-impressao .trend-item-dfuf .chart-wrap.trend-mini{height:165px;}
+html.preparando-impressao .chart-wrap.trend-mini.downtime-mini{height:150px;}
+html.preparando-impressao .pm-grid{grid-template-columns:1fr;gap:12px;}
+html.preparando-impressao .chart-wrap.pm-chart{height:250px;}
+html.preparando-impressao .pm-grid .panel{padding-bottom:10px;}
+html.preparando-impressao .setor-chart-wrap{height:170px;}
+html.preparando-impressao .critical-daily-chart-wrap{height:210px;}
+html.preparando-impressao .section-title{margin:16px 0 10px;}
+html.preparando-impressao .panel{margin-bottom:14px;}
+/* ---------- ESTADO DE CARREGAMENTO DOS DADOS ---------- */
+.data-status{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(242,243,245,.94);backdrop-filter:blur(2px);
+}
+.data-status-box{
+  display:flex;align-items:center;gap:18px;
+  background:var(--card);border:1px solid var(--border-light);
+  border-left:5px solid var(--sotreq-yellow);
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-md);
+  padding:22px 26px;max-width:560px;
+}
+.data-status-box.is-error{border-left-color:var(--bad);}
+.data-status-title{font-size:15px;font-weight:700;color:var(--gray-900);}
+.data-status-msg{font-size:13px;color:var(--gray-700);margin-top:4px;line-height:1.5;}
+.data-status-msg code{font-size:12px;background:var(--gray-100);padding:1px 5px;border-radius:4px;word-break:break-all;}
+.data-status-spinner{
+  width:26px;height:26px;flex:0 0 26px;border-radius:50%;
+  border:3px solid var(--gray-300);border-top-color:var(--sotreq-yellow-dark);
+  animation:dataSpin .9s linear infinite;
+}
+@keyframes dataSpin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion:reduce){.data-status-spinner{animation-duration:2.4s;}}
+@media print{.data-status{display:none !important;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-badge"><span class="b-sotreq">SOTREQ</span><span class="b-cat">CAT</span></div>
+      <div class="brand-titles">
+        <div class="t1">Fleet Performance Management</div>
+        <div class="t2">Engenharia Tradicional Norte</div>
+      </div>
+    </div>
+    <div class="topbar-meta">
+      <div class="meta-item">
+        <div class="meta-label">Período de referência</div>
+        <div class="meta-value" id="periodoRef">–</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Equipamentos</div>
+        <div class="meta-value" id="equipCount">–</div>
+      </div>
+      <div class="meta-item meta-responsavel">
+        <div class="meta-label">Responsável Técnico</div>
+        <div class="meta-value">Daniel Filipe</div>
+      </div>
+      <span class="badge-status">Dados não oficializados</span>
+      <button type="button" class="btn-print" onclick="imprimirA4()" title="Ajusta o painel à folha A4 e abre a impressão. Marque 'Gráficos de segundo plano' para manter as cores.">Imprimir / Salvar PDF</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <div class="filter-field">
+      <label for="fDataIni">Período - Início</label>
+      <div class="field-control">
+        <button type="button" class="field-clear" data-target="fDataIni" title="Limpar filtro">✕</button>
+        <input type="date" id="fDataIni">
+      </div>
+    </div>
+    <div class="filter-field">
+      <label for="fDataFim">Período - Fim</label>
+      <div class="field-control">
+        <button type="button" class="field-clear" data-target="fDataFim" title="Limpar filtro">✕</button>
+        <input type="date" id="fDataFim">
+      </div>
+    </div>
+    <div class="filter-field">
+      <label for="fModelo">Modelo</label>
+      <div class="field-control">
+        <button type="button" class="field-clear" data-target="fModelo" title="Limpar filtro">✕</button>
+        <select id="fModelo"><option value="">Todos</option></select>
+      </div>
+    </div>
+    <div class="filter-field">
+      <label for="fEquipBtn">Equipamento</label>
+      <div class="field-control multiselect" id="msEquip">
+        <button type="button" class="field-clear" data-target="fEquip" title="Limpar filtro">✕</button>
+        <button type="button" class="ms-toggle" id="fEquipBtn">
+          <span id="fEquipLabel">Todos</span>
+          <span class="ms-caret">▾</span>
+        </button>
+        <div class="ms-panel" id="fEquipPanel">
+          <div class="ms-search"><input type="text" id="fEquipSearch" placeholder="Buscar equipamento..."></div>
+          <div class="ms-actions">
+            <button type="button" class="ms-link" id="fEquipSelAll">Selecionar todos</button>
+            <span class="ms-count" id="fEquipCount"></span>
+            <button type="button" class="ms-link" id="fEquipClearAll">Limpar</button>
+          </div>
+          <div class="ms-options" id="fEquipOptions"></div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-ghost" id="btnReset">Limpar filtros</button>
+      <button class="btn btn-primary" id="btnApply">Aplicar</button>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="section-title"><div class="bar"></div><h2>Indicadores de Performance</h2><span class="hint">Calculados a partir da soma das horas do conjunto filtrado</span></div>
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- CHARTS: BENTO GRID -->
+  <div class="bento-grid">
+    <div class="panel bento-comp">
+      <div class="panel-head">
+        <div><h3>Composição das Horas — Meta 80/20</h3><div class="sub">Preventiva x Corretiva, regra CAT: 80% preventiva / 20% corretiva</div></div>
+      </div>
+      <div class="composicao-strip-wrap">
+        <div class="composicao-strip" id="composicaoStrip"></div>
+        <div class="composicao-target" id="composicaoTarget" style="left:80%"><span>Meta 80%</span></div>
+      </div>
+      <div class="composicao-legend" id="composicaoLegend"></div>
+    </div>
+    <div class="section-title"><div class="bar"></div><h2>Evolução Diária dos Indicadores</h2></div>
+    <div class="trend-grid">
+      <div class="panel trend-item trend-item-dfuf">
+        <div class="panel-head">
+          <div><h3>DF x UF</h3><div class="sub">Disponibilidade x Utilização Física, dia a dia</div></div>
+        </div>
+        <div class="trend-item-body">
+          <div class="trend-item-chart-col">
+            <div class="trend-item-legend">
+              <span><i class="legend-dot" style="background:#3a3a3c"></i>DF</span>
+              <span><i class="legend-dot" style="background:#FFC72C"></i>UF</span>
+            </div>
+            <div class="chart-wrap trend-mini"><canvas id="chartTrendDfUf"></canvas></div>
+          </div>
+          <div class="meta-days-block" id="trendDaysDfUf"></div>
+        </div>
+      </div>
+
+      <!-- Mapa de Calor: fica no rodape da primeira folha, junto com
+           Indicadores + Composicao + DF x UF. -->
+      <div class="panel bento-heat">
+        <div class="panel-head">
+          <div><h3>Mapa de Calor — Disponibilidade Física (DF%) por Equipamento</h3><div class="sub">Ordenado do maior para o menor · cor indica intensidade do indicador</div></div>
+        </div>
+        <div id="heatmapDF" class="heatmap-wrap"></div>
+        <div class="heatmap-scale">
+          <span>0%</span><div class="scale-bar"></div><span>100%</span>
+        </div>
+      </div>
+
+      <!-- Corretivas + Downtime dividem a folha 2: agrupados num wrapper
+           para poderem encolher juntos (mesmo mecanismo de auto-ajuste do
+           PM e do Bandit) se nao couberem inteiros na pagina. -->
+      <div class="corretivas-downtime-page">
+        <div class="panel trend-item trend-item-corretivas">
+          <div class="panel-head">
+            <div><h3>Corretivas por Dia</h3><div class="sub">Paradas corretivas, dia a dia (meta: 5,4 corretivas/dia · 162/mês)</div></div>
+          </div>
+          <div class="trend-item-body">
+            <div class="trend-item-chart-col">
+              <div class="trend-item-legend">
+                <span><i class="legend-dot" style="background:#1e8e5a"></i>Dentro da meta</span>
+                <span><i class="legend-dot" style="background:#c62d3c"></i>Fora da meta</span>
+                <span><i class="legend-dash"></i>Meta</span>
+              </div>
+              <div class="chart-wrap trend-mini"><canvas id="chartTrendMtbfMttr"></canvas></div>
+            </div>
+            <div class="trend-item-side">
+              <div class="mtbf-accum-card" id="mtbfAccum"></div>
+              <div class="mtbf-accum-card" id="corretivasAccum"></div>
+              <div class="meta-days-block" id="trendDaysMtbfMttr"></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel trend-item trend-item-downtime">
+          <div class="panel-head">
+            <div><h3>Downtime por Dia</h3><div class="sub">Horas de parada corretiva e preventiva, dia a dia (metas: até 30h corretiva e 29h preventiva/dia)</div></div>
+          </div>
+          <div class="trend-item-body">
+            <div class="trend-item-chart-col">
+              <div class="trend-item-legend">
+                <span><i class="legend-dot" style="background:#1e8e5a"></i>Dentro da meta</span>
+                <span><i class="legend-dot" style="background:#c62d3c"></i>Fora da meta</span>
+                <span><i class="legend-dash"></i>Meta</span>
+              </div>
+              <div class="downtime-sub-title">Corretiva <span class="downtime-sub-meta">(meta: até 30h/dia)</span></div>
+              <div class="chart-wrap trend-mini downtime-mini"><canvas id="chartDowntimeCorretiva"></canvas></div>
+              <div class="downtime-sub-title">Preventiva <span class="downtime-sub-meta">(meta: até 29h/dia)</span></div>
+              <div class="chart-wrap trend-mini downtime-mini"><canvas id="chartDowntimePreventiva"></canvas></div>
+            </div>
+            <div class="meta-days-block" id="trendDaysDowntime"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pm-section">
+    <div class="section-title"><div class="bar"></div><h2>Controle de Preventiva (PM)</h2></div>
+    <div class="pm-status-grid">
+      <div class="pm-status-card bad">
+        <div class="pm-status-value" id="pmStatusAtraso">–</div>
+        <div class="pm-status-label">PMs em Atraso</div>
+      </div>
+      <div class="pm-status-card good">
+        <div class="pm-status-value" id="pmStatusNoPrazo">–</div>
+        <div class="pm-status-label">Concluídas no Prazo</div>
+      </div>
+      <div class="pm-status-card warn">
+        <div class="pm-status-value" id="pmStatusAtrasoConcluida">–</div>
+        <div class="pm-status-label">Concluídas em Atraso</div>
+      </div>
+    </div>
+    <div class="pm-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Backlogs Gerados</h3><div class="sub">BL's P0 x P1, por mês</div></div>
+        </div>
+        <div class="trend-item-legend">
+          <span><i class="legend-dot" style="background:#3a3a3c"></i>BL's P0</span>
+          <span><i class="legend-dot" style="background:#FFC72C"></i>BL's P1</span>
+        </div>
+        <div class="chart-wrap pm-chart"><canvas id="chartPmBacklogsGerados"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Backlogs em PM</h3><div class="sub">BL's Programados x Executados, por mês</div></div>
+        </div>
+        <div class="trend-item-legend">
+          <span><i class="legend-dot" style="background:#3a3a3c"></i>BL's Prog.</span>
+          <span><i class="legend-dot" style="background:#FFC72C"></i>BL's Executados</span>
+        </div>
+        <div class="chart-wrap pm-chart"><canvas id="chartPmBacklogsExec"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><h3>Tempo de PM</h3><div class="sub">Horas programadas x executadas (real), por mês</div></div>
+        </div>
+        <div class="trend-item-legend">
+          <span><i class="legend-dot" style="background:#3a3a3c"></i>Horas Programadas</span>
+          <span><i class="legend-dot" style="background:#FFC72C"></i>Horas Exec. Real</span>
+        </div>
+        <div class="chart-wrap pm-chart"><canvas id="chartPmHoras"></canvas></div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- PROGRAMA CAMINHÕES BANDIT -->
+  <div class="panel bandit-panel">
+    <div class="panel-head">
+      <div><h3>Top Five Caminhões Críticos</h3><div class="sub">Ranking de equipamentos por impacto e seus principais ofensores</div></div>
+    </div>
+
+    <!-- CRITICAL EQUIPMENT -->
+    <div class="equipment-critical-section">
+      <div id="criticalEquipmentList" class="critical-list">
+        <div class="loading">Analisando dados...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYSIS SECTION REMOVED -->
+
+  <!-- MAINTENANCE HISTORY REMOVED -->
+
+  <div class="footer">
+    <div>© <span id="year"></span> <strong>Sotreq S/A</strong> — Painel gerado a partir do relatório detalhado de indicadores de equipamentos.</div>
+    <div>Fonte: Relatório gerado em <span id="data-geracao"></span> · Ferrosos Serra Sul</div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     CARREGAMENTO DE DADOS
+     Antes: os 4 blocos JSON ficavam colados aqui dentro (~4 MB).
+     Agora: sao baixados de /data em tempo de execucao.
+     ============================================================ -->
+<div id="dataStatus" class="data-status" role="status" aria-live="polite">
+  <div class="data-status-box">
+    <div class="data-status-spinner" aria-hidden="true"></div>
+    <div>
+      <div class="data-status-title">Carregando dados da frota</div>
+      <div class="data-status-msg" id="dataStatusMsg">Buscando arquivos...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   ORIGEM DOS DADOS
+
+   1) Deixe GITHUB.usuario em branco para ler a pasta ./data ao lado
+      deste arquivo (serve para GitHub Pages e para servidor local).
+
+   2) Preencha GITHUB para ler direto do repositorio via raw. Use isso
+      quando o index.html estiver hospedado em outro lugar (SharePoint,
+      rede interna, etc.) e so os JSON ficarem no GitHub.
+
+   3) Da para trocar a origem sem editar nada, pela URL:
+      index.html?data=https://raw.githubusercontent.com/USUARIO/REPO/main/data
+   ------------------------------------------------------------------ */
+const GITHUB = {
+  usuario: '',        // ex.: 'vitoria-gfc'
+  repositorio: '',    // ex.: 'painel-gfc'
+  branch: 'main',
+  pasta: 'data'       // pasta dos JSON dentro do repositorio
+};
+
+const ARQUIVOS = {
+  raw:        'raw.json',         // KPI diario por equipamento
+  maint:      'maint.json',       // ordens de manutencao
+  components: 'components.json',  // forecast de reforma de componentes
+  pm:         'pm.json'           // controle de preventiva
+};
+
+function baseDosDados(){
+  const daUrl = new URLSearchParams(location.search).get('data');
+  if(daUrl) return daUrl.replace(/\/+$/,'');
+  if(GITHUB.usuario && GITHUB.repositorio){
+    return `https://raw.githubusercontent.com/${GITHUB.usuario}/${GITHUB.repositorio}/${GITHUB.branch}/${GITHUB.pasta}`.replace(/\/+$/,'');
+  }
+  return 'data';
+}
+
+async function baixarJson(base, arquivo){
+  const url = `${base}/${arquivo}`;
+  const resp = await fetch(url, {cache:'no-cache'});
+  if(!resp.ok) throw new Error(`${arquivo}: HTTP ${resp.status}`);
+  return resp.json();
+}
+
+function mostrarErro(texto, base){
+  const box = document.querySelector('#dataStatus .data-status-box');
+  box.classList.add('is-error');
+  box.innerHTML =
+    '<div>' +
+      '<div class="data-status-title">Nao foi possivel carregar os dados</div>' +
+      '<div class="data-status-msg">' + texto + '</div>' +
+      '<div class="data-status-msg">Origem tentada: <code>' + base + '</code></div>' +
+      '<div class="data-status-msg">Confira se os quatro arquivos JSON estao na pasta e se o repositorio esta publico.</div>' +
+    '</div>';
+}
+
+(async function iniciar(){
+  const base = baseDosDados();
+  const msg  = document.getElementById('dataStatusMsg');
+  try{
+    msg.textContent = 'Baixando de ' + base;
+    const [raw, maint, components, pm] = await Promise.all([
+      baixarJson(base, ARQUIVOS.raw),
+      baixarJson(base, ARQUIVOS.maint),
+      baixarJson(base, ARQUIVOS.components),
+      baixarJson(base, ARQUIVOS.pm)
+    ]);
+    window.SOTREQ_DATA = {raw, maint, components, pm, origem: base};
+
+    msg.textContent = `${raw.length.toLocaleString('pt-BR')} registros diarios · ${maint.length.toLocaleString('pt-BR')} OS · ${components.length.toLocaleString('pt-BR')} componentes · ${pm.length.toLocaleString('pt-BR')} PMs`;
+
+    await new Promise((ok, falha) => {
+      const s = document.createElement('script');
+      s.src = 'app.js';
+      s.onload = ok;
+      s.onerror = () => falha(new Error('app.js nao foi encontrado ao lado do index.html'));
+      document.body.appendChild(s);
+    });
+
+    document.getElementById('dataStatus').remove();
+  }catch(e){
+    mostrarErro(e.message, base);
+  }
+})();
+</script>
+</body>
+</html>
