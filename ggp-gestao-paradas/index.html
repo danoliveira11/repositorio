@@ -335,6 +335,7 @@ body.ro #newCard,body.ro #impJson,body.ro .add-here,body.ro .act,body.ro [data-e
 body.ro [data-msave],body.ro [data-pqnew],body.ro [data-pqimp],body.ro [data-crcnew],body.ro [data-crcimp],body.ro [data-recnew],body.ro [data-recimp],body.ro .rec-copy,body.ro [data-undo],body.ro .add-here,body.ro #lbDel,body.ro #lbCap,body.ro .gt-rs,body.ro [data-imgadd],body.ro [data-mapply],body.ro [data-mimp],body.ro [data-mdel],body.ro [data-exec]{display:none!important}
 body.ro .card{cursor:pointer}
 body.ro tbody tr[data-aid]{cursor:default}
+body.ro tbody tr[data-aid].minha-ac{cursor:pointer;box-shadow:inset 3px 0 var(--yellow)}
 body[data-view="ind"] #vInd,body[data-view="report"] #vReport,body[data-view="fb"] #vFb,body[data-view="parque"] #vParque{display:block}
 tbody tr.nolink{cursor:default}
 .danger-mini{border-color:var(--pend);color:var(--pend)}
@@ -824,6 +825,7 @@ body[data-view="recursos"] #vRec{display:block}
     </select>
     <span class="role" id="roleChip" hidden></span>
     <span id="userMenu" hidden><button class="btn" data-senha>Alterar senha</button><button class="btn" data-sair>Sair</button></span>
+    <button class="btn" id="minhasBtn" hidden>Minhas ações<span class="badge" id="minhasN" hidden></span></button>
     <button class="btn" id="alertBtn">Alertas<span class="badge" id="alertN" hidden></span></button>
     <button class="btn primary" id="newCard">Novo card</button>
     <button class="btn" id="expJson" hidden>Exportar JSON</button>
@@ -911,6 +913,7 @@ body[data-view="recursos"] #vRec{display:block}
     <label class="f">Data previsto<input id="aPrev" type="date"></label>
     <label class="f">Data executado<input id="aExec" type="date"></label>
     <label class="f full">Responsável<input id="aResp" list="dlResp" autocomplete="off"></label>
+    <label class="f full">Responsável (usuário do sistema) <small>opcional: quem for vinculado aqui pode marcar execução e anexar evidências desta ação no próprio site</small><select id="aRespId"><option value="">— nenhum —</option></select></label>
     <label class="f">Prioridade<select id="aPrio"><option value=""></option><option>Crítica</option><option>Alta</option><option>Média</option><option>Baixa</option></select></label>
     <label class="f">Impacto na parada<select id="aImp"><option value=""></option><option>SIM</option><option>NÃO</option></select></label>
     <label class="f full">Observação / justificativa<textarea id="aObs"></textarea></label>
@@ -938,6 +941,29 @@ body[data-view="recursos"] #vRec{display:block}
   <div class="m-head">Alertas</div>
   <div id="alBody"></div>
   <div class="m-foot"><span class="sp"></span><button class="btn ghost" id="alClose">Fechar</button></div>
+</dialog>
+<dialog id="mndlg">
+  <div class="m-head">Minhas ações pendentes</div>
+  <div id="mnBody"></div>
+  <div class="m-foot"><span class="sp"></span><button class="btn ghost" id="mnClose">Fechar</button></div>
+</dialog>
+<dialog id="respdlg">
+  <div class="m-head">Minha ação</div>
+  <div class="m-body">
+    <div class="f full"><span>Pontos a discutir</span><p id="raPonto"></p></div>
+    <div class="f full"><span>Ação gerada</span><p id="raAcaoTxt"></p></div>
+    <div class="f"><span>Data previsto</span><p id="raPrev"></p></div>
+    <div class="f"><span>Prioridade</span><p id="raPrio"></p></div>
+    <div class="f full"><span>Observação / justificativa</span><p id="raObs"></p></div>
+    <label class="f">Data de execução<input id="raExec" type="date"></label>
+    <p class="err" id="raErr" style="grid-column:1/-1"></p>
+  </div>
+  <div class="m-foot">
+    <button class="btn lt" id="raAnx">Anexos</button>
+    <span class="sp"></span>
+    <button class="btn ghost" id="raClose">Fechar</button>
+    <button class="btn primary" id="raSave">Salvar</button>
+  </div>
 </dialog>
 <dialog id="trvdlg">
   <div class="m-head">Troca não pode ser agendada</div>
@@ -1258,7 +1284,7 @@ function migrarLocal(){
   (loc.eventos||[]).forEach(e=>evQueue.push(e));
   save(); $('banner').hidden=true; refresh(); toast(`${loc.cards.length} troca(s) enviadas para o painel compartilhado.`);
 }
-let sb=null, meNome='';
+let sb=null, meNome='', allPerfis=[];
 function sbErr(e){ return (e&&(e.code==='42501'||/row-level security|permission/i.test(e.message||''))) ? {code:'invalid_argument',message:e.message} : (e||{}); }
 function sbAdapter(){
   const col=table=>{
@@ -1295,6 +1321,7 @@ async function startSession(u){
   const {data:perf}=await sb.from('perfis').select('*').eq('user_id',u.id).maybeSingle();
   role = perf&&perf.perfil==='dono' ? 'dono' : perf&&perf.perfil==='editor' ? 'editor' : 'viewer';
   meNome = (perf&&(perf.nome||perf.usuario)) || u.email;
+  sb.from('perfis').select('user_id,nome,usuario').order('nome').then(({data})=>{ allPerfis=data||[]; });
   DB=sbAdapter();
   USER={profiles: async ids=>{ const {data}=await sb.from('perfis').select('user_id,nome,usuario').in('user_id',ids);
     return Object.fromEntries((data||[]).map(p=>[p.user_id,{name:p.nome||p.usuario}])); }};
@@ -1337,6 +1364,17 @@ async function chamarAdminUsers(body){
   if(!res.ok) throw new Error(j.error||('Erro '+res.status));
   return j;
 }
+/* ---------- Responsável da ação (pode ser Visualizador vinculado a uma ação) ---------- */
+async function chamarAcaoResp(body){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session) throw new Error('Sessão expirada, entre novamente.');
+  const res=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/acao-responsavel',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body)});
+  let j={}; try{ j=await res.json(); }catch(e){}
+  if(!res.ok) throw new Error(j.error||('Erro '+res.status));
+  return j;
+}
+const podeResp = a => !!(a&&a.respId&&a.respId===myId);
+const respLabel = a => a&&a.respId ? (nameOf(a.respId)||a.resp||'') : ((a&&a.resp)||'');
 async function renderUsuarios(){
   const v=$('vUsers');
   if(role!=='dono'){ v.innerHTML='<p class="empty">Somente o Dono gerencia usuários.</p>'; return; }
@@ -1599,11 +1637,11 @@ function renderCard(id){
     const grp = a.ponto!==lastPonto ? `<tr class="grp"><td colspan="15">${esc(a.ponto||'Sem ponto a discutir')}</td></tr>` : '';
     lastPonto=a.ponto;
     const s2=acStatus(a), av=avancoOf(a), pr=pesoReal(a), pe=pesoOf(a);
-    return grp+`<tr data-aid="${a.id}" data-cid="${c.id}">
+    return grp+`<tr data-aid="${a.id}" data-cid="${c.id}" class="${podeResp(a)?'minha-ac':''}">
       <td class="num">${i+1}</td><td class="mid">${esc(a.ponto)}</td><td class="wide">${esc(a.acao)}</td>
       <td class="nowrap">${a.previsto?dmy(parse(a.previsto)):''}</td>
       <td class="nowrap">${a.executado?dmy(parse(a.executado)):`<button class="mini" data-exec="${a.id}" data-cid="${c.id}" title="Registrar execução com a data de hoje">Executar hoje</button>`}</td>
-      <td class="mid">${esc(a.resp)}</td><td class="mid">${esc(a.obs)}</td>
+      <td class="mid">${esc(respLabel(a))}</td><td class="mid">${esc(a.obs)}</td>
       <td>${farolHtml(farolOf(a))}</td><td>${astHtml(s2)}</td><td>${esc(a.prioridade)}</td>
       <td class="num">${pe??''}</td><td class="num">${av===null?'':pct(av)}</td><td class="num">${pr===null?'':fmtH(pr)}</td><td>${esc(a.impacto)}</td><td>${anxBtn(c,a)}</td></tr>`;
   }).join('');
@@ -1776,11 +1814,11 @@ function renderAcoes(){
     <label class="wide2">Buscar<input id="gq" type="search" placeholder="Texto da ação, observação ou responsável" value="${esc(gf.q)}"></label>
   </div>`;
   const rows=list.map(({c,a,i})=>{ const s=span(c), av=avancoOf(a), pr=pesoReal(a), pe=pesoOf(a);
-    return `<tr data-aid="${a.id}" data-cid="${c.id}"><td><span data-open="${c.id}" title="Abrir plano de troca">${plate(c)}</span></td>
+    return `<tr data-aid="${a.id}" data-cid="${c.id}" class="${podeResp(a)?'minha-ac':''}"><td><span data-open="${c.id}" title="Abrir plano de troca">${plate(c)}</span></td>
       <td class="nowrap">${s?'SEM'+isoWeek(s.a):'–'}</td><td class="num">${i+1}</td><td class="mid">${esc(a.ponto)}</td><td class="wide">${esc(a.acao)}</td>
       <td class="nowrap">${a.previsto?dmy(parse(a.previsto)):''}</td>
       <td class="nowrap">${a.executado?dmy(parse(a.executado)):`<button class="mini" data-exec="${a.id}" data-cid="${c.id}" title="Registrar execução com a data de hoje">Executar hoje</button>`}</td>
-      <td class="mid">${esc(a.resp)}</td><td>${farolHtml(farolOf(a))}</td><td>${astHtml(acStatus(a))}</td><td>${esc(a.prioridade)}</td>
+      <td class="mid">${esc(respLabel(a))}</td><td>${farolHtml(farolOf(a))}</td><td>${astHtml(acStatus(a))}</td><td>${esc(a.prioridade)}</td>
       <td class="num">${pe??''}</td><td class="num">${av===null?'':pct(av)}</td><td class="num">${pr===null?'':fmtH(pr)}</td><td>${esc(a.impacto)}</td><td class="mid">${esc(a.obs)}</td><td>${anxBtn(c,a)}</td></tr>`; }).join('');
   $('vAcoes').innerHTML=`
     <div class="vhead"><h2>Plano de ação<small>Todas as ações dos planos de troca</small></h2>
@@ -1861,7 +1899,7 @@ const CAMPOS=[['frota','Frota',v=>v||'–'],['inicio','Previsão de início',fmt
   ['parada','Parada',paradaPlana],['pm','Intervalo da PM',v=>v?v+' h':'–'],['backlogs','Backlogs',v=>v??'–'],
   ['tempo','Tempo da troca',v=>v==null?'–':fmtH(v)+' h'],['componentes','Componente(s)',v=>(v||[]).map(k=>compLabel(k)).join('; ')||'–'],['atencao','Ponto de atenção',v=>v||'–']];
 const ACAMPOS=[['ponto','Pontos a discutir',v=>v||'–'],['acao','Ação gerada',v=>trunc(v,60)||'–'],['previsto','Data previsto',fmtD],['executado','Data executado',fmtD],
-  ['resp','Responsável',v=>v||'–'],['obs','Observação',v=>trunc(v,60)||'–'],['prioridade','Prioridade',v=>v||'–'],['impacto','Impacto na parada',v=>v||'–']];
+  ['resp','Responsável',v=>v||'–'],['respId','Responsável (usuário)',v=>v?nameOf(v):'–'],['obs','Observação',v=>trunc(v,60)||'–'],['prioridade','Prioridade',v=>v||'–'],['impacto','Impacto na parada',v=>v||'–']];
 const diffOf=(L,o,n)=>L.filter(([k])=>JSON.stringify(o[k]??null)!==JSON.stringify(n[k]??null)).map(([k,l,f])=>`${l}: ${f(o[k])} → ${f(n[k])}`).join('; ');
 function histHtml(list,showFrota){
   if(!list.length) return '<p class="empty">Nenhuma alteração registrada ainda.</p>';
@@ -3328,7 +3366,7 @@ function refresh(){
   else if(view.type==='crc') renderCrc();
   else if(view.type==='recursos') renderRec();
   else renderBoard();
-  renderTotals(); renderTabs(); renderPlanStats(); renderAlertBadge(); kpiCores();
+  renderTotals(); renderTabs(); renderPlanStats(); renderAlertBadge(); renderMinhasBadge(); kpiCores();
 }
 const go = h => { if(location.hash===h) refresh(); else location.hash=h; };
 window.addEventListener('hashchange',route);
@@ -3420,6 +3458,7 @@ document.addEventListener('click',e=>{
   if(t.closest('[data-impall]')){ $('fileIn').click(); return; }
   if(t.closest('[data-expall]')){ download('GGP-dados.json',JSON.stringify({cards:state.cards,modelos:state.modelos,parque:parque(),crc:crcAll(),recursos:recAll()},null,2)); return; }
   if(t.closest('[data-bannerx]')){ $('banner').hidden=true; return; }
+  const myRow=t.closest('[data-aid]'); if(myRow&&ro()){ const rc=findCard(myRow.dataset.cid), ra=rc&&(rc.acoes||[]).find(x=>x.id===myRow.dataset.aid); if(ra&&podeResp(ra)) openMinhaAcao(myRow.dataset.cid,myRow.dataset.aid); return; }
   if(ro()&&!t.closest('[data-open]')&&t.closest('.act,[data-undo],[data-edit],[data-newac],[data-impxls],[data-msave],[data-mapply],[data-mimp],[data-mdel],[data-exec],[data-add],[data-aid]')) return;
   const act=t.closest('[data-act]'); if(act){ const c=findCard(act.dataset.cid); if(c){ const o=statusOf(c); c.manual=act.dataset.act; log(c,'Status',`${STATUS[o].label} → ${STATUS[statusOf(c)].label}`); save(); refresh(); } return; }
   const undo=t.closest('[data-undo]'); if(undo){ const c=findCard(undo.dataset.undo); if(c){ const o=statusOf(c); c.manual = c.manual==='concluido'?'execucao':null; log(c,'Status desfeito',`${STATUS[o].label} → ${STATUS[statusOf(c)].label}`); save(); refresh(); } return; }
@@ -3431,6 +3470,7 @@ document.addEventListener('click',e=>{
   const md=t.closest('[data-mdel]'); if(md){ if(confirm('Excluir o modelo de '+compLabel(md.dataset.mdel)+'?')){ state.modelos=modelos().filter(m=>m.comp!==md.dataset.mdel); save(); refresh(); } return; }
   const ma=t.closest('[data-mapply]'); if(ma){ const c=findCard(ma.dataset.mapply); if(c){ const n=applyModels(c,false); save(); refresh(); toast(n?`${n} ações do modelo adicionadas.`:'Todas as ações do modelo já estão no plano.'); } return; }
   const al=t.closest('[data-alc]'); if(al){ aldlg.close(); const cid=al.dataset.alc, aid=al.dataset.ala; go('#/card/'+cid); if(aid) setTimeout(()=>openAc(cid,aid),50); return; }
+  const mn=t.closest('[data-mnc]'); if(mn){ mndlg.close(); abrirMinhaAcao(mn.dataset.mnc,mn.dataset.mna); return; }
   const rm=t.closest('[data-rpmove]'); if(rm){ const d=Number(rm.dataset.rpmove); rp.start = d? toIso(addDays(parse(rp.start||state.start),d)) : state.start; renderReport(); return; }
   if(t.closest('[data-rppng]')){ if(podeReport()) reportPng(); return; }
   if(t.closest('[data-rppdf]')){ if(podeReport()) reportPdf(); return; }
@@ -3533,10 +3573,12 @@ function openAc(cid,aid){
   if(ro()) return;
   acCard=findCard(cid); if(!acCard) return;
   acEdit=aid?acCard.acoes.find(a=>a.id===aid):null;
-  const a=acEdit||{ponto:'',acao:'',previsto:'',executado:'',resp:'',obs:'',prioridade:'',impacto:''};
+  const a=acEdit||{ponto:'',acao:'',previsto:'',executado:'',resp:'',respId:'',obs:'',prioridade:'',impacto:''};
   $('aTitle').textContent=acEdit?'Ação '+(acCard.acoes.indexOf(acEdit)+1)+' – '+acCard.frota:'Nova ação – '+acCard.frota;
   $('aPonto').value=a.ponto; $('aAcao').value=a.acao; $('aPrev').value=a.previsto; $('aExec').value=a.executado;
   $('aResp').value=a.resp; $('aObs').value=a.obs; $('aPrio').value=a.prioridade; $('aImp').value=a.impacto;
+  $('aRespId').innerHTML='<option value="">— nenhum —</option>'+allPerfis.map(p=>`<option value="${p.user_id}">${esc(p.nome||p.usuario)}</option>`).join('');
+  $('aRespId').value=a.respId||'';
   $('dlPontos').innerHTML=[...new Set(acCard.acoes.map(x=>x.ponto).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
   $('dlResp').innerHTML=[...new Set(state.cards.flatMap(c=>c.acoes.map(x=>x.resp)).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
   $('aDel').style.visibility=acEdit?'visible':'hidden'; $('aErr').textContent='';
@@ -3546,7 +3588,7 @@ function openAc(cid,aid){
 $('aCancel').onclick=()=>adlg.close();
 $('aSave').onclick=()=>{
   const d={ponto:$('aPonto').value.trim(),acao:$('aAcao').value.trim(),previsto:$('aPrev').value,executado:$('aExec').value,
-    resp:$('aResp').value.trim(),obs:$('aObs').value.trim(),prioridade:$('aPrio').value,impacto:$('aImp').value};
+    resp:$('aResp').value.trim(),respId:$('aRespId').value,obs:$('aObs').value.trim(),prioridade:$('aPrio').value,impacto:$('aImp').value};
   if(!d.acao){ $('aErr').textContent='Descreva a ação gerada.'; $('aAcao').focus(); return; }
   if(acEdit){ const df=diffOf(ACAMPOS,acEdit,d); Object.assign(acEdit,d); if(df) log(acCard,'Ação alterada',`Ação ${acCard.acoes.indexOf(acEdit)+1}: ${df}`); }
   else { // nova ação entra logo após a última do mesmo ponto a discutir
@@ -3569,7 +3611,7 @@ const ANX_BUCKET='anexos', ANX_MAX=50*1024*1024, ANX_MAX_LOCAL=2*1024*1024;
 const CLIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>';
 function anxBtn(c,a){
   const n=(a.anexos||[]).length;
-  if(!n&&ro()) return '';
+  if(!n&&ro()&&!podeResp(a)) return '';
   return `<button class="anx-b ${n?'has':''}" data-anx="${a.id}" data-cid="${c.id}" title="${n?'Ver anexos':'Adicionar anexos'}">${CLIP}${n||'+'}</button>`;
 }
 const fmtTam = b => b>=1048576 ? (b/1048576).toFixed(1).replace('.',',')+' MB' : Math.max(1,Math.round(b/1024))+' KB';
@@ -3584,28 +3626,41 @@ function renderAnx(){
   $('anxList').innerHTML = l.length ? l.map(x=>`<div class="anx-row"><span class="anx-ext">${esc((extOf(x.nome)||'arq').toUpperCase())}</span>
       <div class="anx-info"><b title="${esc(x.nome)}">${esc(x.nome)}</b><span>${x.tam?fmtTam(x.tam)+' · ':''}enviado em ${fmtTs(x.ts)}${x.uid?' por '+esc(nameOf(x.uid)):''}</span></div>
       <button class="btn lt" data-anxdl="${x.id}">Baixar</button><button class="btn ghost" data-anxdel="${x.id}" title="Excluir anexo">Excluir</button></div>`).join('')
-    : `<p class="empty">${ro()?'Nenhum anexo nesta ação.':'Nenhum anexo ainda. Fotos, relatórios, planilhas, PDFs ou e-mails salvos.'}</p>`;
+    : `<p class="empty">${ro()&&!podeResp(a)?'Nenhum anexo nesta ação.':'Nenhum anexo ainda. Fotos, relatórios, planilhas, PDFs ou e-mails salvos.'}</p>`;
 }
 function openAnx(cid,aid){ anx={cid,aid}; renderAnx(); if(!anxdlg.open) anxdlg.showModal(); }
 async function addAnexos(files){
-  const {c,a}=anxCur(); if(!a||ro()) return;
+  const {c,a}=anxCur(); if(!a) return;
+  const restrito = ro()&&podeResp(a);
+  if(ro()&&!restrito) return;
   if(!Array.isArray(a.anexos)) a.anexos=[];
   let n=0; toast('Enviando arquivo(s)…');
   for(const f of files){
     const lim = sb&&DB ? ANX_MAX : ANX_MAX_LOCAL;
     if(f.size>lim){ toast(`${f.name} passa de ${fmtTam(lim)} e não foi enviado.`); continue; }
     try{
-      const id=uid(), ext=extOf(f.name);
-      const x={id,nome:f.name,tipo:f.type||'',tam:f.size,ts:new Date().toISOString(),uid:myId||''};
-      if(sb&&DB){ const path=`${c.id}/${a.id}/${id}${ext?'.'+ext:''}`;
-        const {error}=await sb.storage.from(ANX_BUCKET).upload(path,f,{contentType:f.type||'application/octet-stream'});
-        if(error){ toast('Não foi possível enviar '+f.name+(error.message?': '+error.message:'')); continue; }
-        x.path=path;
-      } else x.data=await blobToData(f);
-      a.anexos.push(x); n++;
-    }catch(err){ toast('Não foi possível ler '+f.name); }
+      if(restrito){
+        const r=await chamarAcaoResp({action:'get_upload_url',card_id:c.id,acao_id:a.id,nome:f.name,tipo:f.type||'',tam:f.size});
+        const {error:upErr}=await sb.storage.from(ANX_BUCKET).uploadToSignedUrl(r.path,r.token,f,{contentType:f.type||'application/octet-stream'});
+        if(upErr){ toast('Não foi possível enviar '+f.name+(upErr.message?': '+upErr.message:'')); continue; }
+        const conf=await chamarAcaoResp({action:'confirm_anexo',card_id:c.id,acao_id:a.id,id:r.id,path:r.path,nome:f.name,tipo:f.type||'',tam:f.size});
+        a.anexos.push(conf.anexo); n++;
+      } else {
+        const id=uid(), ext=extOf(f.name);
+        const x={id,nome:f.name,tipo:f.type||'',tam:f.size,ts:new Date().toISOString(),uid:myId||''};
+        if(sb&&DB){ const path=`${c.id}/${a.id}/${id}${ext?'.'+ext:''}`;
+          const {error}=await sb.storage.from(ANX_BUCKET).upload(path,f,{contentType:f.type||'application/octet-stream'});
+          if(error){ toast('Não foi possível enviar '+f.name+(error.message?': '+error.message:'')); continue; }
+          x.path=path;
+        } else x.data=await blobToData(f);
+        a.anexos.push(x); n++;
+      }
+    }catch(err){ toast('Não foi possível enviar '+f.name+(err&&err.message?': '+err.message:'')); }
   }
-  if(n){ log(c,'Anexos adicionados',`Ação ${c.acoes.indexOf(a)+1}: ${n} arquivo(s)`); save(); refresh(); renderAnx(); toast(`${n} arquivo(s) anexado(s).`); }
+  if(n){
+    if(restrito){ refresh(); renderAnx(); toast(`${n} arquivo(s) anexado(s).`); }
+    else { log(c,'Anexos adicionados',`Ação ${c.acoes.indexOf(a)+1}: ${n} arquivo(s)`); save(); refresh(); renderAnx(); toast(`${n} arquivo(s) anexado(s).`); }
+  }
 }
 async function baixarAnexo(id){
   const {a}=anxCur(), x=a&&(a.anexos||[]).find(y=>y.id===id); if(!x) return;
@@ -3618,22 +3673,86 @@ async function baixarAnexo(id){
   }catch(e){ toast('Não foi possível baixar '+x.nome+'.'); }
 }
 async function excluirAnexo(id){
-  if(ro()) return;
-  const {c,a}=anxCur(), x=a&&(a.anexos||[]).find(y=>y.id===id); if(!x||!confirm(`Excluir o anexo "${x.nome}"?`)) return;
+  const {c,a}=anxCur(); if(!a) return;
+  const restrito = ro()&&podeResp(a);
+  if(ro()&&!restrito) return;
+  const x=(a.anexos||[]).find(y=>y.id===id); if(!x||!confirm(`Excluir o anexo "${x.nome}"?`)) return;
+  if(restrito){
+    if(x.uid!==myId){ toast('Você só pode excluir anexos que você mesmo enviou.'); return; }
+    try{ await chamarAcaoResp({action:'anexo_del',card_id:c.id,acao_id:a.id,anexo_id:id}); }
+    catch(err){ toast('Não foi possível excluir: '+err.message); return; }
+    a.anexos=a.anexos.filter(y=>y!==x); refresh(); renderAnx();
+    return;
+  }
   if(x.path&&sb){ const {error}=await sb.storage.from(ANX_BUCKET).remove([x.path]); if(error){ toast('Não foi possível excluir o arquivo.'); return; } }
   a.anexos=a.anexos.filter(y=>y!==x); log(c,'Anexo excluído',`Ação ${c.acoes.indexOf(a)+1}: ${x.nome}`); save(); refresh(); renderAnx();
 }
-$('anxAdd').onclick=()=>{ if(!ro()) $('anxIn').click(); };
+$('anxAdd').onclick=()=>{ const {a}=anxCur(); if(!ro()||podeResp(a)) $('anxIn').click(); };
 $('anxIn').onchange=e=>{ const f=[...e.target.files]; e.target.value=''; if(f.length) addAnexos(f); };
 $('anxClose').onclick=()=>anxdlg.close();
 anxdlg.addEventListener('click',e=>{ if(e.target===anxdlg){ anxdlg.close(); return; }
   const dl=e.target.closest('[data-anxdl]'); if(dl){ baixarAnexo(dl.dataset.anxdl); return; }
   const dx=e.target.closest('[data-anxdel]'); if(dx){ excluirAnexo(dx.dataset.anxdel); return; } });
 const anxDrop=$('anxDrop');
-anxDrop.addEventListener('dragover',e=>{ if(ro()) return; e.preventDefault(); anxDrop.classList.add('over'); });
+anxDrop.addEventListener('dragover',e=>{ const {a}=anxCur(); if(ro()&&!podeResp(a)) return; e.preventDefault(); anxDrop.classList.add('over'); });
 anxDrop.addEventListener('dragleave',()=>anxDrop.classList.remove('over'));
-anxDrop.addEventListener('drop',e=>{ e.preventDefault(); anxDrop.classList.remove('over'); if(!ro()&&e.dataTransfer.files.length) addAnexos([...e.dataTransfer.files]); });
+anxDrop.addEventListener('drop',e=>{ e.preventDefault(); anxDrop.classList.remove('over'); const {a}=anxCur(); if((!ro()||podeResp(a))&&e.dataTransfer.files.length) addAnexos([...e.dataTransfer.files]); });
 $('aAnx').onclick=()=>{ if(acEdit) openAnx(acCard.id,acEdit.id); };
+$('aRespId').onchange=()=>{ const sel=$('aRespId'); if(sel.value&&!$('aResp').value.trim()){ const opt=sel.selectedOptions[0]; $('aResp').value=opt?opt.textContent:''; } };
+
+/* ---------- Minhas ações (ações vinculadas a mim como responsável, ainda não executadas) ---------- */
+function minhasAcoes(){
+  const out=[];
+  state.cards.forEach(c=>(c.acoes||[]).forEach(a=>{ if(a.respId&&a.respId===myId&&!a.executado) out.push({c,a}); }));
+  return out.sort((x,y)=>{ const px=x.a.previsto||'9999-99-99', py=y.a.previsto||'9999-99-99'; return px<py?-1:px>py?1:0; });
+}
+function renderMinhasBadge(){
+  if(!myId||!sb){ $('minhasBtn').hidden=true; return; }
+  const n=minhasAcoes().length;
+  $('minhasBtn').hidden=false; $('minhasN').textContent=n||''; $('minhasN').hidden=!n;
+}
+const mndlg=$('mndlg');
+function openMinhas(){
+  const l=minhasAcoes();
+  $('mnBody').innerHTML = l.length ? `<div class="al-g"><h4 style="--c:var(--yellow)">Ações atribuídas a você <span>${l.length}</span></h4>${
+    l.map(({c,a})=>`<button class="al-i" data-mnc="${c.id}" data-mna="${a.id}"><span class="plate">${esc(c.frota)}</span><span>${esc(trunc(a.acao,90))}${a.previsto?' · previsto '+dmy(parse(a.previsto)):' · sem data prevista'}</span></button>`).join('')}</div>`
+    : '<p class="empty">Nenhuma ação pendente atribuída a você.</p>';
+  mndlg.showModal();
+}
+$('minhasBtn').onclick=openMinhas;
+$('mnClose').onclick=()=>mndlg.close();
+function abrirMinhaAcao(cid,aid){
+  go('#/card/'+cid);
+  setTimeout(()=>{ if(role==='editor'||role==='dono') openAc(cid,aid); else openMinhaAcao(cid,aid); },50);
+}
+/* ---------- Minha ação (Visualizador vinculado como responsável: só data de execução e anexos) ---------- */
+const respdlg=$('respdlg'); let raCard=null, raAcEdit=null;
+function openMinhaAcao(cid,aid){
+  const c=findCard(cid), a=c&&(c.acoes||[]).find(x=>x.id===aid);
+  if(!a||!c||!podeResp(a)) return;
+  raCard=c; raAcEdit=a;
+  $('raPonto').textContent=a.ponto||'–';
+  $('raAcaoTxt').textContent=a.acao||'–';
+  $('raPrev').textContent=a.previsto?dmy(parse(a.previsto)):'Sem data prevista';
+  $('raPrio').textContent=a.prioridade||'–';
+  $('raObs').textContent=a.obs||'–';
+  $('raExec').value=a.executado||'';
+  $('raAnx').textContent='Anexos'+((a.anexos||[]).length?` (${a.anexos.length})`:'');
+  $('raErr').textContent='';
+  respdlg.showModal();
+}
+$('raClose').onclick=()=>respdlg.close();
+$('raAnx').onclick=()=>{ if(raAcEdit) openAnx(raCard.id,raAcEdit.id); };
+$('raSave').onclick=async()=>{
+  if(!raAcEdit) return;
+  const v=$('raExec').value;
+  $('raSave').disabled=true; $('raErr').textContent='';
+  try{
+    await chamarAcaoResp({action:'status',card_id:raCard.id,acao_id:raAcEdit.id,executado:v||null});
+    raAcEdit.executado=v||''; toast('Salvo.'); respdlg.close(); refresh();
+  }catch(err){ $('raErr').textContent=err.message||'Não foi possível salvar.'; }
+  finally{ $('raSave').disabled=false; }
+};
 
 
 /* ---------- Feedback da parada (preenchido por Editor/Dono após a parada; gera o relatório para e-mail) ---------- */
