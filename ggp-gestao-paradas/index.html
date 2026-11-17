@@ -790,6 +790,10 @@ body[data-view="recursos"] #vRec{display:block}
 .mat-cfg summary{cursor:pointer}
 .mat-cfgb{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:8px}
 .mat-cfgb .f{width:130px}
+.mat-infob{padding:0 14px 12px;font-size:13.5px;color:var(--ink)}
+.mat-infob p{margin:8px 0}
+.mat-infob ul{margin:4px 0;padding-left:20px}
+.mat-infob li{margin:4px 0}
 .mat-cfgb input{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:6px 8px;color:var(--ink)}
 .c-mat{position:relative;margin-top:6px;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px;background:var(--surface-2)}
 .c-mat i{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb,var(--m) 22%,transparent)}
@@ -3112,6 +3116,29 @@ function maturidade(c){
   return {P,idx,faixa,bloq,semPeso,cfg,frota,iniciada};
 }
 const matPct = m => m.idx===null?'–':Math.round(m.idx*100)+'%';
+const MAT_PIL_DESC={
+  comp:'Verificado automaticamente pelo Parque reserva: conta como pronto quando o componente estará disponível (MRO + Tenda) até a data de início da troca.',
+  peca:'Itens cadastrados no Padrão de recursos para os componentes desta troca. Status marcado manualmente — Solicitado, Pendente de ação ou Disponível — e só “Disponível” conta como pronto.',
+  recurso:'Itens cadastrados no Padrão de recursos para os componentes desta troca. Status marcado manualmente — Solicitado, Pendente de ação ou Disponível — e só “Disponível” conta como pronto.',
+  insumo:'Itens cadastrados no Padrão de recursos para os componentes desta troca. Status marcado manualmente — Solicitado, Pendente de ação ou Disponível — e só “Disponível” conta como pronto.',
+  acao:'Peso das ações já executadas dividido pelo peso total das ações com prioridade definida. Ações “em andamento” ainda não contam, e ações sem prioridade ficam de fora da conta.'
+};
+function matInfoHtml(m){
+  return `<details class="mat-det"><summary>Como funciona esse índice?</summary>
+    <div class="mat-infob">
+      <p>A maturidade soma 5 pilares, cada um com um peso. Em cada pilar: <b>% do pilar = itens prontos ÷ total de itens</b> desse pilar. Um pilar sem nenhum item cadastrado não entra na conta — aparece como aviso, em vez de contar como 0%.</p>
+      <ul>${MAT_PIL.map(([k,l])=>`<li><b>${l}</b> <span class="count">(peso ${fmtH(m.cfg.pesos[k])})</span> — ${MAT_PIL_DESC[k]}</li>`).join('')}</ul>
+      <p>O índice final é a <b>média dos pilares usados, ponderada pelos pesos</b>: soma de (% do pilar × peso) dividido pela soma dos pesos dos pilares que entraram na conta.</p>
+      <p>A faixa é definida assim:</p>
+      <ul>
+        <li><b>Liberada</b> — índice de ${m.cfg.min}% ou mais e nenhum bloqueio.</li>
+        <li><b>Atenção</b> — abaixo de ${m.cfg.min}%, sem bloqueio.</li>
+        <li><b>Não liberada</b> — existe ao menos um bloqueio: ação de prioridade Crítica ou com Impacto na parada = SIM que ainda não foi executada. Um bloqueio vence o índice, mesmo que ele esteja em 100%.</li>
+        <li><b>Sem dados</b> — nenhum dos 5 pilares tem item cadastrado para esta troca.</li>
+      </ul>
+      <p class="count">${podeReport()?'Os pesos de cada pilar e o mínimo para liberar ficam logo abaixo, em “Configurar índice”, e valem para todas as paradas.':'Os pesos de cada pilar e o mínimo para liberar são definidos pelo Editor/Dono e valem para todas as paradas.'}</p>
+    </div></details>`;
+}
 function matBadge(c){
   if(statusOf(c)==='concluido') return '';
   const m=maturidade(c), fx=MAT_FX[m.faixa];
@@ -3139,6 +3166,7 @@ function matHtml(c){
       <label class="f">Mínimo para liberar (%)<input type="number" min="0" max="100" step="1" id="matmin" value="${m.cfg.min}"></label>
       <button class="btn primary" data-matcfg>Salvar configuração</button><span class="count">Vale para todas as paradas.</span></div></details>`:'';
   return `<div class="sec mat"><h3>Maturidade da parada</h3>
+    ${matInfoHtml(m)}
     <div class="mat-top">
       <div class="mat-ring" style="--p:${pc};--m:${fx.c}"><b>${matPct(m)}</b><span>maturidade</span></div>
       <div class="mat-sum"><div class="mat-fx" style="--m:${fx.c}">${fx.l}</div>
