@@ -1329,22 +1329,58 @@ async function trocarSenha(){
   const {error}=await sb.auth.updateUser({password:p}); toast(error?'Não foi possível alterar a senha.':'Senha alterada.');
 }
 /* ---------- Usuários (somente Dono) ---------- */
+async function chamarAdminUsers(body){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session) throw new Error('Sessão expirada, entre novamente.');
+  const res=await fetch(CONFIG.SUPABASE_URL+'/functions/v1/admin-users',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body)});
+  let j={}; try{ j=await res.json(); }catch(e){}
+  if(!res.ok) throw new Error(j.error||('Erro '+res.status));
+  return j;
+}
 async function renderUsuarios(){
   const v=$('vUsers');
   if(role!=='dono'){ v.innerHTML='<p class="empty">Somente o Dono gerencia usuários.</p>'; return; }
   const {data,error}=await sb.from('perfis').select('*').order('usuario');
   if(error){ v.innerHTML='<p class="empty">Não foi possível carregar os usuários.</p>'; return; }
   v.innerHTML=`<div class="vhead"><h2>Usuários e acessos<small>Quem pode entrar no GGP e com qual nível</small></h2><div class="meta"><b>${data.length}</b> usuários</div></div>
-    <div class="panel"><p class="count">Para criar um usuário: no Supabase, abra <b>Authentication &gt; Users &gt; Add user</b>, informe <b>usuario@${CONFIG.DOMINIO_LOGIN}</b> e uma senha inicial, e marque <b>Auto Confirm User</b>. Ele aparece aqui como Visualizador; ajuste o nível abaixo.</p>
-    <div class="twrap"><table><thead><tr><th>Usuário</th><th>Nome</th><th>Nível de acesso</th><th>Criado em</th></tr></thead><tbody>${
+    <div class="panel"><h3 style="margin:0 0 10px">Adicionar usuário</h3>
+    <div class="m-body">
+      <label class="f">Usuário<input id="nuUsuario" placeholder="ex.: joao.silva" autocomplete="off"></label>
+      <label class="f">Nome completo<input id="nuNome" placeholder="Opcional"></label>
+      <label class="f">Senha inicial<input id="nuSenha" type="password" placeholder="mínimo 8 caracteres" autocomplete="new-password"></label>
+      <label class="f">Nível de acesso<select id="nuPerfil">${[['viewer','Visualizador'],['editor','Editor'],['dono','Dono (admin)']].map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></label>
+    </div>
+    <p class="err" id="nuErr"></p>
+    <div class="atools" style="margin-top:4px"><button class="btn primary" id="nuSubmit">Adicionar usuário</button></div></div>
+    <div class="panel" style="margin-top:14px">
+    <div class="twrap"><table><thead><tr><th>Usuário</th><th>Nome</th><th>Nível de acesso</th><th>Criado em</th><th></th></tr></thead><tbody>${
       data.map(p=>`<tr class="nolink"><td class="nowrap"><b>${esc(p.usuario)}</b>${p.user_id===myId?' <span class="count">(você)</span>':''}</td>
         <td><input class="uin" data-unome="${p.user_id}" value="${esc(p.nome||'')}" placeholder="Nome completo"></td>
         <td><select class="uin" data-uperf="${p.user_id}" ${p.user_id===myId?'disabled title="Você não pode alterar o próprio nível"':''}>
           ${[['viewer','Visualizador'],['editor','Editor'],['dono','Dono (admin)']].map(([k,l])=>`<option value="${k}" ${p.perfil===k?'selected':''}>${l}</option>`).join('')}</select></td>
-        <td class="nowrap">${p.criado_em?fmtTs(p.criado_em):''}</td></tr>`).join('')}</tbody></table></div>
+        <td class="nowrap">${p.criado_em?fmtTs(p.criado_em):''}</td>
+        <td class="nowrap">${p.user_id===myId?'':`<button class="btn lt" data-uremove="${p.user_id}">Remover</button>`}</td></tr>`).join('')}</tbody></table></div>
     <div class="atools" style="margin-top:12px"><button class="btn lt" data-impall>Importar dados (JSON)</button><button class="btn lt" data-expall>Exportar dados (JSON)</button></div></div>`;
   v.querySelectorAll('[data-uperf]').forEach(el=>el.onchange=async()=>{ const {error}=await sb.from('perfis').update({perfil:el.value}).eq('user_id',el.dataset.uperf); toast(error?'Não foi possível alterar o nível.':'Nível de acesso atualizado.'); });
   v.querySelectorAll('[data-unome]').forEach(el=>el.onchange=async()=>{ const {error}=await sb.from('perfis').update({nome:el.value.trim()}).eq('user_id',el.dataset.unome); if(!error) names[el.dataset.unome]=el.value.trim(); toast(error?'Não foi possível salvar o nome.':'Nome salvo.'); });
+  v.querySelectorAll('[data-uremove]').forEach(el=>el.onclick=async()=>{
+    if(!confirm('Remover este usuário? Ele perde o acesso imediatamente e a ação não pode ser desfeita.')) return;
+    el.disabled=true;
+    try{ await chamarAdminUsers({action:'delete',user_id:el.dataset.uremove}); toast('Usuário removido.'); renderUsuarios(); }
+    catch(err){ toast('Não foi possível remover: '+err.message); el.disabled=false; }
+  });
+  const criarUsuario=async()=>{
+    const usuario=$('nuUsuario').value.trim(), nome=$('nuNome').value.trim(), senha=$('nuSenha').value, perfil=$('nuPerfil').value;
+    $('nuErr').textContent='';
+    if(!usuario||!senha){ $('nuErr').textContent='Informe usuário e senha.'; return; }
+    if(senha.length<8){ $('nuErr').textContent='A senha precisa ter pelo menos 8 caracteres.'; return; }
+    $('nuSubmit').disabled=true;
+    try{ await chamarAdminUsers({action:'create',usuario,nome,senha,perfil}); toast('Usuário criado.'); renderUsuarios(); }
+    catch(err){ $('nuErr').textContent='Não foi possível criar: '+err.message; }
+    finally{ $('nuSubmit').disabled=false; }
+  };
+  $('nuSubmit').onclick=criarUsuario;
+  $('nuSenha').addEventListener('keydown',e=>{ if(e.key==='Enter') criarUsuario(); });
 }
 const names={}; const nameQ=new Set(); let nameTimer=null;
 function nameOf(id){
