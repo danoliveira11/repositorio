@@ -2702,7 +2702,7 @@ async function exportParque(){
    a frota é agrupada pelo início do MODELO (794… = 794AC, 793… = 793F). */
 const CRC_COLS=[['os','ORDEM DE SERVIÇO'],['gestao','GESTÃO'],['stSotreq','STATUS SOTREQ'],['status','STATUS'],['modelo','MODELO'],['texto','TEXTO BREVE']];
 const CRC_ST=[  // ordem de exibição e cor por STATUS (texto como está na planilha)
-  ['ORCAMENTACAO','#7E5BB5'],['EM NEGOCIACAO','#B04E98'],['APROVADO','#1F6FB2'],['EXECUCAO','#E8891C'],['EM EXECUCAO','#C76A0C'],
+  ['GERACAO DE OS','#5C6670'],['ORCAMENTACAO','#7E5BB5'],['EM NEGOCIACAO','#B04E98'],['APROVADO','#1F6FB2'],['EXECUCAO','#E8891C'],['EM EXECUCAO','#C76A0C'],
   ['COMCLUIDO','#2E9E4F'],['CONCLUIDO','#2E9E4F'],['ENTREGUE','#14745A'],['REPROVADO','#D3392A']];
 const crcStKey = s => normH(s)||'SEM STATUS';
 const crcStCor = k => (CRC_ST.find(([x])=>x===k)||[k,'#7A8089'])[1];

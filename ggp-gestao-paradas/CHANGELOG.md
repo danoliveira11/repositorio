@@ -2,6 +2,15 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Novo status "Geração de OS" no INFO CRC
+
+Pedido: adicionar o status "Geração de OS" ao INFO CRC.
+
+- O quadro/lista do INFO CRC já aceitava qualquer texto de status vindo da planilha (um status não cadastrado em `CRC_ST` só caía num cinza padrão e ia para o fim da ordem — nada quebrava). O que faltava era dar a esse status específico uma cor e uma posição corretas na sequência.
+- Adicionado `['GERACAO DE OS', '#5C6670']` como **primeiro** item de `CRC_ST` — antes de "Orçamentação", já que gerar a OS é a etapa anterior ao orçamento. Cor cinza-azulada neutra, para marcar visualmente uma etapa ainda bem inicial.
+- Arquivo: `index.html` (`CRC_ST`). Sem mudança de schema/Edge Function.
+- Validado com Playwright, inclusive contra os dados de exemplo (`CRC_EXEMPLO`, usados no modo local/demonstração): a coluna "Geração de OS" aparece primeiro no quadro, com a cor nova, contada certinho nos cartões de resumo e no gráfico de distribuição por status.
+
 ## 2026-11-18 — Corrige blocos da Maturidade "abrindo sozinhos" e adiciona importação por planilha na Carteira de Backlog
 
 Pedido: (1) os blocos (pilares) da Maturidade, dentro do Plano de ação, estavam se abrindo sozinhos sem o usuário clicar; (2) adicionar importação por planilha nas duas listas da Carteira de Backlog (OS Material de Instalação e Backlog de aplicação), que até então só aceitavam lançamento manual item por item.
