@@ -1046,6 +1046,7 @@ body[data-view="carteira"] #vCarteira{display:block}
 </dialog>
 <datalist id="ctg_stos_l"></datalist><datalist id="ctg_stom_l"></datalist>
 <input type="file" id="ctIn" accept=".xlsx,.xlsm,.xls" hidden>
+<input type="file" id="ctpIn" accept=".xlsx,.xlsm,.xls" hidden>
 <dialog id="ctpdlg">
   <div class="m-head" id="ctpTitle">OS da carteira</div>
   <div class="m-body">
@@ -3258,7 +3259,7 @@ function renderCarteira(){
       <div class="twrap"><table><thead><tr><th>OS</th><th>Status OS</th><th>Status OM</th><th>Descrição</th></tr></thead>
         <tbody>${rows||`<tr class="empty-row"><td colspan="4">Nenhuma OS cadastrada para ${esc(ctF.frota)} ainda.</td></tr>`}</tbody></table></div>
     </div>
-    <div class="sec"><details class="mat-det"><summary>Configurar classificação dos status (${osList.length} status de OS vistos)</summary>
+    <div class="sec"><details class="mat-det" data-pkey="ctcfg"${detOpen('ctcfg',false)?' open':''}><summary>Configurar classificação dos status (${osList.length} status de OS vistos)</summary>
       <div class="mat-infob">
         <p>Define como cada <b>Status OS</b> vira OK / Atenção / Pendente / Cancelada no DE-PARA das paradas. Regra fixa, que não depende daqui: se o <b>Status OM</b> tiver "Encerrado" conta sempre como <b>OK</b>; se tiver "Cancelado", conta sempre como <b>Cancelada</b> — só o que sobra passa pela tabela abaixo.</p>
         ${osList.length?`<div class="twrap"><table><thead><tr><th>Status OS</th><th>Classificação</th></tr></thead><tbody>${
@@ -3337,6 +3338,36 @@ $('ctIn').onchange=e=>{
     }catch(err){ toast(err.message||'Não foi possível ler a planilha.'); } };
   r.readAsArrayBuffer(f);
 };
+$('ctpIn').onchange=e=>{
+  const f=e.target.files[0], tipo=e.target.dataset.tipo, card=findCard(e.target.dataset.cid); e.target.value=''; if(!f||ro()||!card) return;
+  if(typeof XLSX==='undefined'){ toast('Não foi possível carregar o leitor de Excel.'); return; }
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const wb=XLSX.read(new Uint8Array(r.result),{type:'array'}); let rows=null, hi=-1;
+      for(const n of wb.SheetNames){ const x=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:null});
+        const i=x.findIndex(l=>l.some(v=>['OS','ORDEM DE SERVICO','DESCRICAO'].includes(normH(v)))); if(i>=0){ rows=x; hi=i; break; } }
+      if(!rows) throw new Error('Não encontrei as colunas OS ou DESCRIÇÃO na planilha.');
+      const H=rows[hi].map(normH), at=(...n)=>H.findIndex(h=>n.includes(h));
+      const C={os:at('OS','ORDEM DE SERVICO','ORDEM','NUMERO DA OS','NUMERO OS','N OS','Nº OS'),desc:at('DESCRICAO','DESCRICAO DA OS','TEXTO BREVE','DESCR'),qtd:at('QUANTIDADE','QTD','QNTD','QTDE','QUANT')};
+      if(C.os<0) throw new Error('Não encontrei a coluna da OS na planilha.');
+      const tx=(l,i)=>i<0||l[i]===null||l[i]===undefined?'':String(l[i]).trim();
+      const itens=rows.slice(hi+1).map(l=>{ const q=tx(l,C.qtd), n=q===''?'':Number(q.replace(',','.'));
+        return {id:uid(),os:tx(l,C.os),desc:tx(l,C.desc),qtd:tipo==='material'?(q===''?'':(isFinite(n)?n:q)):''}; }).filter(x=>x.os);
+      if(!itens.length){ toast('A planilha não tem OS preenchidas.'); return; }
+      const arrKey=tipo==='material'?'carteiraMaterial':'carteiraBacklog', nome=tipo==='material'?'Material de Instalação':'Backlog de aplicação';
+      const atuais=card[arrKey]||(card[arrKey]=[]);
+      let modo='novo';
+      if(atuais.length){
+        if(confirm(`${nome} de ${card.frota} já tem ${atuais.length} OS cadastradas.\n\nOK = ADICIONAR as ${itens.length} OS da planilha às já existentes.\nCancelar = outras opções.`)) modo='adicionar';
+        else if(confirm(`Substituir as ${atuais.length} OS existentes pelas ${itens.length} da planilha?\n\n(Cancelar para não importar nada.)`)) modo='substituir';
+        else return;
+      }
+      card[arrKey]=modo==='substituir'?itens:[...atuais,...itens];
+      log(card,'Carteira de Backlog',`${nome}: ${itens.length} OS ${modo==='adicionar'?'adicionadas':'importadas'} da planilha ${f.name}`);
+      save(); refresh(); toast(`${itens.length} OS ${modo==='adicionar'?'adicionadas':'importadas'}.`);
+    }catch(err){ toast(err.message||'Não foi possível ler a planilha.'); } };
+  r.readAsArrayBuffer(f);
+};
 
 /* ---------- Carteira de Backlog por parada (duas listas digitadas: Material de Instalação e Backlog de aplicação) ---------- */
 const ctFilter={matQ:'',matSt:'',bkQ:'',bkSt:''};
@@ -3358,11 +3389,11 @@ function carteiraSecHtml(c){
   const linhaBk=bkList.map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="backlog" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
   return `<div class="sec"><h3>Carteira de Backlog</h3>
     <p class="count">OS necessárias para esta parada, cruzadas automaticamente com a Carteira Geral de ${esc(c.frota)} para saber o status real de cada uma (DE-PARA).</p>
-    <div class="ct-grp"><div class="ct-grph"><b>OS Material de Instalação</b><span class="count">insumos necessários</span>${ctResumoHtml(matR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpnew="material" data-cid="${c.id}">+ OS</button>`}</div>
+    <div class="ct-grp"><div class="ct-grph"><b>OS Material de Instalação</b><span class="count">insumos necessários</span>${ctResumoHtml(matR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpimp="material" data-cid="${c.id}">Importar (Excel)</button><button class="btn lt mini" data-ctpnew="material" data-cid="${c.id}">+ OS</button>`}</div>
       ${matAll.length?ctFiltroHtml('mat',ctFilter.matQ,ctFilter.matSt):''}
       <div class="twrap"><table><thead><tr><th>OS</th><th class="num">Qtd</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
         <tbody>${linhaMat||`<tr class="empty-row"><td colspan="4">${!matAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div>
-    <div class="ct-grp"><div class="ct-grph"><b>Backlog de aplicação</b><span class="count">carteira de criticidade</span>${ctResumoHtml(bkR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpnew="backlog" data-cid="${c.id}">+ OS</button>`}</div>
+    <div class="ct-grp"><div class="ct-grph"><b>Backlog de aplicação</b><span class="count">carteira de criticidade</span>${ctResumoHtml(bkR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpimp="backlog" data-cid="${c.id}">Importar (Excel)</button><button class="btn lt mini" data-ctpnew="backlog" data-cid="${c.id}">+ OS</button>`}</div>
       ${bkAll.length?ctFiltroHtml('bk',ctFilter.bkQ,ctFilter.bkSt):''}
       <div class="twrap"><table><thead><tr><th>OS</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
         <tbody>${linhaBk||`<tr class="empty-row"><td colspan="3">${!bkAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div>
@@ -3457,8 +3488,11 @@ const MAT_PIL_DESC={
   acao:'Peso das ações já executadas dividido pelo peso total das ações com prioridade definida. Ações “em andamento” ainda não contam, e ações sem prioridade ficam de fora da conta.',
   backlog:'OS lançadas na Carteira de Backlog desta troca (Material de Instalação + Backlog de aplicação), cruzadas com a Carteira Geral do equipamento. Conta como pronto quando o DE-PARA dá OK ou Cancelada; Atenção e Pendente não contam.'
 };
+const detOpenState={};
+const detOpen=(key,def)=>key in detOpenState?detOpenState[key]:def;
+document.addEventListener('toggle',e=>{ const el=e.target; if(el&&el.tagName==='DETAILS'&&el.dataset.pkey) detOpenState[el.dataset.pkey]=el.open; },true);
 function matInfoHtml(m){
-  return `<details class="mat-det"><summary>Como funciona esse índice?</summary>
+  return `<details class="mat-det" data-pkey="matinfo"${detOpen('matinfo',false)?' open':''}><summary>Como funciona esse índice?</summary>
     <div class="mat-infob">
       <p>A maturidade soma 5 pilares, cada um com um peso. Em cada pilar: <b>% do pilar = itens prontos ÷ total de itens</b> desse pilar. Um pilar sem nenhum item cadastrado não entra na conta — aparece como aviso, em vez de contar como 0%.</p>
       <ul>${MAT_PIL.map(([k,l])=>`<li><b>${l}</b> <span class="count">(peso ${fmtH(m.cfg.pesos[k])})</span> — ${MAT_PIL_DESC[k]}</li>`).join('')}</ul>
@@ -3490,12 +3524,12 @@ function matHtml(c){
   const stSel=(c,i)=>ro()?`<span class="mat-st" data-s="${esc(i.st)}">${esc(i.st||'Sem status')}</span>`
     :`<select class="mat-sel" data-matst="${esc(i.key)}" data-cid="${c.id}" data-s="${esc(i.st)}"><option value="">Sem status</option>${MAT_ST.map(s=>`<option${i.st===s?' selected':''}>${s}</option>`).join('')}</select>`;
   const tab=(k)=>{ const x=m.P[k]; if(!x.tot) return '';
-    const pend=x.tot-x.ok;
-    if(k==='comp') return `<details class="mat-det"${pend?' open':''}><summary><b>${x.l}</b> <span class="count">${x.ok} de ${x.tot} disponíveis · automático pelo parque reserva</span></summary>
+    const pend=x.tot-x.ok, pk='pil-'+k+'-'+c.id, abrir=detOpen(pk,!!pend);
+    if(k==='comp') return `<details class="mat-det" data-pkey="${pk}"${abrir?' open':''}><summary><b>${x.l}</b> <span class="count">${x.ok} de ${x.tot} disponíveis · automático pelo parque reserva</span></summary>
       <div class="twrap"><table><thead><tr><th>Componente</th><th>Situação</th><th>Detalhe</th></tr></thead><tbody>${x.itens.map(i=>`<tr class="nolink"><td><b>${esc(i.nome)}</b></td><td><span class="mat-st" data-s="${esc(i.st)}">${esc(i.st)}</span></td><td class="count">${esc(i.det)}</td></tr>`).join('')}</tbody></table></div></details>`;
-    return `<details class="mat-det"${pend?' open':''}><summary><b>${x.l}</b> <span class="count">${x.ok} de ${x.tot} disponíveis${pend?` · ${pend} pendente(s)`:''}</span></summary>
+    return `<details class="mat-det" data-pkey="${pk}"${abrir?' open':''}><summary><b>${x.l}</b> <span class="count">${x.ok} de ${x.tot} disponíveis${pend?` · ${pend} pendente(s)`:''}</span></summary>
       <div class="twrap"><table><thead><tr><th>Item</th><th>Componente</th><th class="num">Qtd</th><th>Orientação</th><th>Status na parada</th></tr></thead><tbody>${x.itens.map(i=>`<tr class="nolink"><td><b>${esc(i.nome)}</b></td><td class="nowrap">${esc(i.comp)}</td><td class="num nowrap">${esc(recQtd(i.qtd))}${i.un?' '+esc(i.un):''}</td><td class="rec-or">${esc(i.orient||'')}</td><td>${stSel(c,i)}</td></tr>`).join('')}</tbody></table></div></details>`; };
-  const cfg=podeReport()?`<details class="mat-cfg"><summary>Configurar índice (pesos e mínimo)</summary><div class="mat-cfgb">
+  const cfg=podeReport()?`<details class="mat-cfg" data-pkey="matcfg"${detOpen('matcfg',false)?' open':''}><summary>Configurar índice (pesos e mínimo)</summary><div class="mat-cfgb">
       ${MAT_PIL.map(([k,l])=>`<label class="f">${l}<input type="number" min="0" step="0.5" id="matw_${k}" value="${m.cfg.pesos[k]}"></label>`).join('')}
       <label class="f">Mínimo para liberar (%)<input type="number" min="0" max="100" step="1" id="matmin" value="${m.cfg.min}"></label>
       <button class="btn primary" data-matcfg>Salvar configuração</button><span class="count">Vale para todas as paradas.</span></div></details>`:'';
@@ -3818,6 +3852,7 @@ document.addEventListener('click',e=>{
   if(t.closest('[data-ctgimp]')){ if(!ro()) $('ctIn').click(); return; }
   const ctg=t.closest('[data-ctg]'); if(ctg){ openCtg(ctg.dataset.ctg); return; }
   const ctpn=t.closest('[data-ctpnew]'); if(ctpn){ openCtp(ctpn.dataset.ctpnew,ctpn.dataset.cid,null); return; }
+  const ctpi=t.closest('[data-ctpimp]'); if(ctpi){ if(!ro()){ $('ctpIn').dataset.tipo=ctpi.dataset.ctpimp; $('ctpIn').dataset.cid=ctpi.dataset.cid; $('ctpIn').click(); } return; }
   const ctp=t.closest('[data-ctp]'); if(ctp){ openCtp(ctp.dataset.ctptipo,ctp.dataset.cid,ctp.dataset.ctp); return; }
   const io=t.closest('[data-imgopen]'); if(io){ openImg(io.dataset.imgopen,io.dataset.i); return; }
   const ia=t.closest('[data-imgadd]'); if(ia){ if(!ro()){ $('imgIn').dataset.cid=ia.dataset.imgadd; $('imgIn').click(); } return; }

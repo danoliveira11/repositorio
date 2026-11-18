@@ -2,6 +2,16 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Corrige blocos da Maturidade "abrindo sozinhos" e adiciona importação por planilha na Carteira de Backlog
+
+Pedido: (1) os blocos (pilares) da Maturidade, dentro do Plano de ação, estavam se abrindo sozinhos sem o usuário clicar; (2) adicionar importação por planilha nas duas listas da Carteira de Backlog (OS Material de Instalação e Backlog de aplicação), que até então só aceitavam lançamento manual item por item.
+
+- **Causa do bug**: os blocos recolhíveis (`<details>`) dos pilares da Maturidade calculavam o atributo `open` direto dos dados (`pend ? ' open' : ''`) toda vez que a tela era desenhada de novo. Isso por si parecia inofensivo, mas a tela de uma troca redesenha inteira — inclusive a Maturidade — a cada 60 segundos (atualização automática) e a cada tecla digitada nos filtros (inclusive os novos filtros de Carteira de Backlog e Responsável/Prioridade adicionados há pouco). Resultado: se o usuário fechava manualmente um bloco com pendência, o próximo redesenho silencioso reabria ele sozinho.
+- **Correção**: novo helper `detOpen(key, padrão)` guarda o estado real que o usuário escolheu (aberto/fechado) num objeto `detOpenState`, atualizado por um listener global do evento `toggle`. Aplicado aos 4 pilares com detalhe (Componente reserva/Material de Instalação/Recursos/Insumos), ao "Como funciona esse índice?", ao "Configurar índice" e ao "Configurar classificação dos status" da Carteira Geral — nenhum desses blocos deve mais mudar de estado sozinho, em nenhuma tela.
+- **Importação por planilha na Carteira de Backlog**: as duas listas (OS Material de Instalação, Backlog de aplicação) ganharam botão "Importar (Excel)", com as mesmas colunas aceitas da Carteira Geral (OS, Descrição, Quantidade — Quantidade só vale para Material de Instalação) e a mesma escolha adicionar/substituir das outras importações do app.
+- Arquivos: `index.html` (`matInfoHtml`, `tab()` em `matHtml`, `renderCarteira`, novo handler `$('ctpIn').onchange`, botões `data-ctpimp`). Sem mudança de schema/Edge Function.
+- Validado com Playwright: (a) simulei abrir → fechar manualmente → forçar um re-render (o mesmo que o refresh de 60s faria) e confirmei que o bloco continua fechado, não reabre; (b) testei a importação de ponta a ponta com um arquivo `.xlsx` real gerado para o teste, disparando o seletor de arquivo de verdade (não só manipulando o estado direto) — as OS entraram certinho, com quantidade numérica.
+
 ## 2026-11-18 — Filtros em 4 listas: Material de Instalação (Padrão de recursos), Plano de ação, OS Material de Instalação e Backlog de aplicação
 
 Pedido: adicionar filtro nesses 4 blocos.
