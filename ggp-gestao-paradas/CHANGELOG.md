@@ -2,6 +2,17 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Nova edição de modelo propaga para as trocas pendentes do componente
+
+Pedido: quando um novo plano/edição é salvo para um componente, ele deve substituir o plano de ação em todas as trocas que ainda estão **pendentes** (planejado/pendente) daquele componente. Trocas em execução ou já concluídas não devem ser alteradas.
+
+- Toda ação inserida por um modelo (`applyModels`, tanto automático na criação da troca quanto pelo botão "Aplicar modelo") agora carrega `origemComp`/`origemVersao`, para dar pra saber depois "esta ação veio do modelo X, edição Y".
+- Ao salvar uma nova edição (botão "Salvar plano como modelo" ou importação de modelo por planilha), o app lista as trocas desse componente que ainda não estão em execução/concluídas e pergunta (confirm) se quer aplicar a edição nova nelas também. Confirmando, a nova função `propagarEdicaoModelo` troca só as ações que vieram daquele modelo (preserva ações digitadas manualmente e as de outros componentes) e registra no histórico de cada troca afetada.
+- A troca de onde o modelo foi salvo nunca entra nessa lista (ela já está com o plano certo).
+- Limitação conhecida, documentada no `CLAUDE.md`: ações aplicadas por um modelo antes desta mudança não têm a marcação de origem, então uma propagação futura não vai substituí-las automaticamente — isso só vale a partir de agora.
+- Arquivos: `index.html` (seção "Modelos de plano por componente"). Sem mudança de schema/Edge Function.
+- Validado com Playwright/`role='local'`: criei 3 trocas do mesmo componente (planejado, execução, concluído), salvei uma nova edição do modelo e confirmei que só a troca "planejado" teve a ação substituída — as outras duas ficaram exatamente como estavam.
+
 ## 2026-11-18 — Modelos de plano por componente agora são versionados
 
 Pedido: o Editor não conseguia salvar uma nova edição do plano-modelo de um componente (ex.: "plano de motor") — o sistema só sabia **substituir** o modelo existente (um `confirm()` de "Substituir?" e, se confirmado, a edição anterior era perdida de vez). Pedido do usuário: permitir lançar uma nova edição e manter um histórico das anteriores.

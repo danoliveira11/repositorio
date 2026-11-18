@@ -1948,10 +1948,21 @@ function applyModels(c,auto){
   let n=0;
   ms.forEach(m=>m.acoes.forEach(a=>{
     const k=normH(a.ponto)+'|'+normH(a.acao); if(seen.has(k)) return; seen.add(k);
-    c.acoes.push({id:uid(),...modelAcao(a),previsto:'',executado:'',obs:''}); n++;
+    c.acoes.push({id:uid(),...modelAcao(a),previsto:'',executado:'',obs:'',origemComp:m.comp,origemVersao:m.versao||1}); n++;
   }));
   if(n) log(c,'Modelo aplicado',`${n} ações do(s) modelo(s): ${ms.map(m=>compLabel(m.comp)).join(', ')}${auto?' (automático na criação da troca)':''}`);
   return n;
+}
+/* Trocas ainda não iniciadas (planejado/pendente) que usam o componente: candidatas a receber a nova edição do modelo. */
+const trocasPendentesDoComp = (comp,excetoId) => state.cards.filter(c=>c.id!==excetoId&&(c.componentes||[]).includes(comp)&&!['execucao','concluido'].includes(statusOf(c)));
+function propagarEdicaoModelo(cards,comp,versao,acoesModelo){
+  cards.forEach(c=>{
+    c.acoes=c.acoes.filter(a=>a.origemComp!==comp);
+    const novas=acoesModelo.map(a=>({id:uid(),...modelAcao(a),previsto:'',executado:'',obs:'',origemComp:comp,origemVersao:versao}));
+    c.acoes.push(...novas);
+    log(c,'Modelo atualizado',`Plano de ${compLabel(comp)} atualizado para a edição ${versao} do modelo (${novas.length} ações) — troca ainda pendente`);
+  });
+  return cards;
 }
 const mdlg=$('mdlg'); let mdMode=null, mdCard=null;
 function openModelo(mode,cid){
@@ -1962,8 +1973,8 @@ function openModelo(mode,cid){
   $('mdComp').innerHTML=keys.map(k=>`<option value="${esc(k)}">${esc(compLabel(k))}${modelFor(k)?` (edição ${modelFor(k).versao||1} salva)`:''}</option>`).join('');
   $('mdTitle').textContent = mode==='save' ? 'Salvar plano de '+mdCard.frota+' como modelo' : 'Importar modelo de planilha';
   $('mdInfo').textContent = mode==='save'
-    ? `As ${mdCard.acoes.length} ações entram no modelo sem datas, execução e observações. Ficam: ponto a discutir, ação, responsável, prioridade e impacto. Se o componente já tiver um modelo, isto cria uma nova edição — a anterior fica guardada no histórico, nada se perde.`
-    : 'Escolha o componente e depois a planilha no formato do plano de ação. Datas, execução e observações não entram no modelo. Se o componente já tiver um modelo, isto cria uma nova edição — a anterior fica guardada no histórico.';
+    ? `As ${mdCard.acoes.length} ações entram no modelo sem datas, execução e observações. Ficam: ponto a discutir, ação, responsável, prioridade e impacto. Se o componente já tiver um modelo, isto cria uma nova edição — a anterior fica guardada no histórico, nada se perde — e você pode aplicar a edição nova nas trocas desse componente que ainda estão pendentes (trocas em execução ou concluídas nunca são alteradas).`
+    : 'Escolha o componente e depois a planilha no formato do plano de ação. Datas, execução e observações não entram no modelo. Se o componente já tiver um modelo, isto cria uma nova edição — a anterior fica guardada no histórico — e você pode aplicar a edição nova nas trocas desse componente que ainda estão pendentes (trocas em execução ou concluídas nunca são alteradas).';
   $('mdOk').textContent = mode==='save' ? 'Salvar modelo' : 'Escolher planilha';
   $('mdErr').textContent=''; mdlg.showModal();
 }
@@ -1972,8 +1983,13 @@ $('mdOk').onclick=()=>{
   const comp=$('mdComp').value; if(!comp) return;
   if(mdMode==='save'){
     const {novo,atual}=salvarModelo(comp,mdCard.acoes,mdCard.frota);
-    log(mdCard,'Modelo salvo',`${atual?`Edição ${novo.versao} do modelo`:'Modelo'} de ${compLabel(comp)} salv${atual?'a':'o'} (${novo.acoes.length} ações)${atual?'; edição anterior mantida no histórico':''}`);
-    save(); mdlg.close(); refresh(); toast(atual?`Nova edição do modelo de ${compLabel(comp)} salva.`:`Modelo de ${compLabel(comp)} salvo.`);
+    const pendentes=trocasPendentesDoComp(comp,mdCard.id);
+    let afetadas=[];
+    if(pendentes.length&&confirm(`Aplicar esta edição também a ${pendentes.length} troca${pendentes.length>1?'s':''} pendente${pendentes.length>1?'s':''} de ${compLabel(comp)} (${pendentes.map(c=>c.frota).join(', ')})?\n\nTrocas em execução ou já concluídas não são alteradas.`))
+      afetadas=propagarEdicaoModelo(pendentes,comp,novo.versao,novo.acoes);
+    log(mdCard,'Modelo salvo',`${atual?`Edição ${novo.versao} do modelo`:'Modelo'} de ${compLabel(comp)} salv${atual?'a':'o'} (${novo.acoes.length} ações)${atual?'; edição anterior mantida no histórico':''}${afetadas.length?`; aplicada a ${afetadas.length} troca(s) pendente(s)`:''}`);
+    save(); mdlg.close(); refresh();
+    toast(`${atual?'Nova edição do modelo':'Modelo'} de ${compLabel(comp)} salva${afetadas.length?`. Atualizada em ${afetadas.length} troca${afetadas.length>1?'s':''} pendente${afetadas.length>1?'s':''}.`:'.'}`);
   } else {
     const x=$('xlsIn'); delete x.dataset.cid; x.dataset.model=comp; mdlg.close(); x.click();
   }
@@ -1982,7 +1998,7 @@ function modelosHtml(){
   const ms=[...modelos()].sort((a,b)=>compLabel(a.comp).localeCompare(compLabel(b.comp),'pt'));
   const acoesHtml = acoes => `<ol class="mlist">${acoes.map(a=>`<li><b>${esc(a.ponto)}</b> ${esc(a.acao)}${a.resp?` <span class="count">(${esc(a.resp)})</span>`:''}</li>`).join('')}</ol>`;
   return `<div class="sec"><h3>Modelos de plano por componente</h3>
-    <p class="count">Ao criar uma troca, as ações do modelo de cada componente selecionado entram automaticamente no plano, sem datas. Salvar de novo para um componente que já tem modelo cria uma nova edição — a anterior fica guardada no histórico, nada se perde.</p>
+    <p class="count">Ao criar uma troca, as ações do modelo de cada componente selecionado entram automaticamente no plano, sem datas. Salvar de novo para um componente que já tem modelo cria uma nova edição — a anterior fica guardada no histórico, nada se perde — com a opção de já aplicar a edição nova nas trocas desse componente que ainda estão pendentes (trocas em execução ou concluídas nunca são alteradas).</p>
     <div class="atools"><button class="btn lt" data-mimp>Importar modelo (Excel)</button></div>
     ${ms.length?`<div class="twrap"><table><thead><tr><th>Componente</th><th class="num">Edição</th><th class="num">Ações</th><th>Origem</th><th>Atualizado</th><th></th></tr></thead><tbody>${
       ms.map(m=>{ const hist=m.historico||[];
@@ -4071,8 +4087,12 @@ $('xlsIn').onchange=e=>{
       const novas=parseAcoes(new Uint8Array(r.result));
       if(!novas.length){ toast('A planilha não tem ações preenchidas.'); return; }
       if(model){ const {novo,atual}=salvarModelo(model,novas,'Planilha '+f.name);
-        log(null,'Modelo importado',`${atual?`Edição ${novo.versao}`:'Modelo'} de ${compLabel(model)}: ${novas.length} ações (planilha ${f.name})${atual?'; edição anterior mantida no histórico':''}`);
-        save(); refresh(); toast(`${atual?'Nova edição do modelo':'Modelo'} de ${compLabel(model)} com ${novas.length} ações.`); return; }
+        const pendentes=trocasPendentesDoComp(model,null);
+        let afetadas=[];
+        if(pendentes.length&&confirm(`Aplicar esta edição também a ${pendentes.length} troca${pendentes.length>1?'s':''} pendente${pendentes.length>1?'s':''} de ${compLabel(model)} (${pendentes.map(c=>c.frota).join(', ')})?\n\nTrocas em execução ou já concluídas não são alteradas.`))
+          afetadas=propagarEdicaoModelo(pendentes,model,novo.versao,novo.acoes);
+        log(null,'Modelo importado',`${atual?`Edição ${novo.versao}`:'Modelo'} de ${compLabel(model)}: ${novas.length} ações (planilha ${f.name})${atual?'; edição anterior mantida no histórico':''}${afetadas.length?`; aplicada a ${afetadas.length} troca(s) pendente(s)`:''}`);
+        save(); refresh(); toast(`${atual?'Nova edição do modelo':'Modelo'} de ${compLabel(model)} com ${novas.length} ações${afetadas.length?`. Atualizada em ${afetadas.length} troca${afetadas.length>1?'s':''} pendente${afetadas.length>1?'s':''}.`:'.'}`); return; }
       if(c.acoes.length&&!confirm(`${c.frota} já tem ${c.acoes.length} ações. Adicionar as ${novas.length} ações importadas ao final?`)) return;
       c.acoes.push(...novas); log(c,'Ações importadas',`${novas.length} ações da planilha ${f.name}`); save(); refresh(); toast(`${novas.length} ações importadas para ${c.frota}.`);
     }catch(err){ toast(err.message||'Não foi possível ler a planilha.'); } };
