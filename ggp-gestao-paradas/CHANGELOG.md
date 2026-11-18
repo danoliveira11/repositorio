@@ -2,6 +2,14 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Corrige import de planilha (coluna QNTD) e renomeia "Peças" para "Material de Instalação"
+
+Pedido: a importação da planilha de peças (padrão da base, ex.: MATERIAL DE R&I MOTOR DIESEL) não estava trazendo a quantidade dos itens; e renomear a categoria "Peças" para "Material de Instalação".
+
+- **Bug de import**: o leitor de planilha do Padrão de recursos só reconhecia as colunas de quantidade como `QUANTIDADE` ou `QTD`. A planilha padrão do usuário usa `QNTD` (ordem de letras diferente de `QTD`), que não batia com nenhum dos dois — por isso a quantidade ficava sempre vazia. Também percebi, pelo mesmo motivo, que a coluna `Orientações` (plural) não batia com o `ORIENTAÇÃO` (singular) esperado — mesma classe de bug, mesmo não reportado. Ampliei os sinônimos aceitos para PART NUMBER/CÓDIGO/COD/PN, QUANTIDADE/QTD/QNTD/QTDE/QUANT, UNIDADE/UN/UND, DESCRIÇÃO (+variações) e ORIENTAÇÃO/ORIENTAÇÕES (+variações). Validado reproduzindo os cabeçalhos exatos da planilha do usuário.
+- **Renomeação**: "Peças" virou "Material de Instalação" em toda a interface — aba/categoria em Padrão de recursos, pilar do índice de maturidade, textos descritivos. A chave interna da categoria continua `peca` (não mudei o dado gravado, só o rótulo), então nada quebra em itens já cadastrados.
+- Arquivos: `index.html` (`REC_CAT`, `MAT_PIL`, import da planilha de recursos). Sem mudança de schema/Edge Function.
+
 ## 2026-11-18 — Nova edição de modelo propaga para as trocas pendentes do componente
 
 Pedido: quando um novo plano/edição é salvo para um componente, ele deve substituir o plano de ação em todas as trocas que ainda estão **pendentes** (planejado/pendente) daquele componente. Trocas em execução ou já concluídas não devem ser alteradas.

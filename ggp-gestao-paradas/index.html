@@ -2896,7 +2896,7 @@ if(!SHARED&&!crcAll().length){ state.crc=JSON.parse(JSON.stringify(CRC_EXEMPLO))
 const REC_FROTAS=['794AC','793F'];
 const recAll = () => Array.isArray(state.recursos) ? state.recursos : (state.recursos=[]);
 const recF={frota:'794AC',parada:'MPNS',pm:PMS[0],comp:'',q:'',cat:'peca'};
-const REC_CAT={peca:{l:'Peças',um:'peça',pn:'Part number'},recurso:{l:'Recursos',um:'recurso',pn:'Código / PN'},insumo:{l:'Insumos',um:'insumo',pn:'Código / PN'}};
+const REC_CAT={peca:{l:'Material de Instalação',um:'material',pn:'Part number'},recurso:{l:'Recursos',um:'recurso',pn:'Código / PN'},insumo:{l:'Insumos',um:'insumo',pn:'Código / PN'}};
 const recCatOf = it => REC_CAT[it&&it.cat]?it.cat:'peca';
 const recComps = () => { const v=new Set(); return COMPONENTES.map(compKey).filter(k=>!v.has(k)&&v.add(k)); };
 const REC_PARADAS=[['MPNS','MPNS'],['PM','PM'],['Confiabilidade','Parada de confiabilidade']];
@@ -2930,7 +2930,7 @@ function renderRec(){
       <td class="mid"><b>${esc(it.desc)}</b></td><td class="rec-or">${esc(it.orient)}</td>
       ${ro()?'':`<td class="nowrap"><button class="btn lt mini" data-recup="${it.id}" ${i?'':'disabled'} aria-label="Subir">↑</button> <button class="btn lt mini" data-recdn="${it.id}" ${i<itens.length-1?'':'disabled'} aria-label="Descer">↓</button></td>`}</tr>`).join('');
   $('vRec').innerHTML=`
-    <div class="vhead"><h2>Padrão de recursos<small>Peças, recursos e insumos por componente · ${esc(recF.frota)} · ${esc(recSelLbl())}</small></h2>
+    <div class="vhead"><h2>Padrão de recursos<small>Material de Instalação, recursos e insumos por componente · ${esc(recF.frota)} · ${esc(recSelLbl())}</small></h2>
       <div class="meta"><b>${comPadrao}</b> de ${comps.length} componentes com padrão em ${esc(recF.frota)} · ${esc(recSelLbl())}</div></div>
     <div class="panel"><div class="crc-bar">
       <div class="segs" role="group" aria-label="Frota">${REC_FROTAS.map(f=>`<button class="seg${recF.frota===f?' on':''}" data-recfr="${f}">${f}</button>`).join('')}</div>
@@ -2941,7 +2941,7 @@ function renderRec(){
     ${(n=>n?`<div class="mat-av" style="list-style:none;padding-left:12px">${n} ${n===1?'padrão foi cadastrado':'padrões foram cadastrados'} antes da separação por tipo de parada (ou por intervalo da PM) e não ${n===1?'entra':'entram'} na maturidade. Escolha o tipo de parada e use “Copiar de” (aparecem como “sem tipo de parada” ou “PM sem intervalo”) para levá-los ao tipo certo.</div>`:'')(recAll().filter(r=>recLegado(r)&&(r.itens||[]).length).length)}
     <div class="rec-grid">
       <nav class="rec-list" aria-label="Componentes">${lista.map(k=>{ const n=recItens(k,recF.frota).length;
-        return `<button class="rec-li${k===recF.comp?' on':''}" data-reccomp="${esc(k)}"><span>${esc(compLabel(k))}</span>${n?`<b title="Peças, recursos e insumos">${n}</b>`:'<i>sem padrão</i>'}</button>`; }).join('')||'<p class="count" style="padding:10px">Nenhum componente com esse nome.</p>'}</nav>
+        return `<button class="rec-li${k===recF.comp?' on':''}" data-reccomp="${esc(k)}"><span>${esc(compLabel(k))}</span>${n?`<b title="Material de Instalação, recursos e insumos">${n}</b>`:'<i>sem padrão</i>'}</button>`; }).join('')||'<p class="count" style="padding:10px">Nenhum componente com esse nome.</p>'}</nav>
       <section class="rec-det">
         <div class="rec-dh"><div><div class="rec-k">Componente · Frota ${esc(recF.frota)} · ${esc(recSelLbl())}</div><h3>${esc(compLabel(recF.comp))}</h3>
           <div class="count">${todos.length?`${Object.keys(REC_CAT).map(k=>`${todos.filter(x=>recCatOf(x)===k).length} ${REC_CAT[k].l.toLowerCase()}`).join(' · ')}${p&&p.atualizado?' · atualizado em '+fmtTs(p.atualizado):''}`:'Nenhum item cadastrado neste padrão.'}</div></div>
@@ -3066,7 +3066,7 @@ $('recIn').onchange=e=>{
         const i=x.findIndex(l=>l.some(v=>['PART NUMBER','CODIGO','DESCRICAO'].includes(normH(v)))); if(i>=0){ rows=x; hi=i; break; } }
       if(!rows) throw new Error('Não encontrei as colunas PART NUMBER, CÓDIGO ou DESCRIÇÃO na planilha.');
       const H=rows[hi].map(normH), at=(...n)=>H.findIndex(h=>n.includes(h));
-      const C={pn:at('PART NUMBER','CODIGO','CODIGO / PN'),qtd:at('QUANTIDADE','QTD'),un:at('UNIDADE','UN'),desc:at('DESCRICAO'),orient:at('ORIENTACAO')};
+      const C={pn:at('PART NUMBER','CODIGO','CODIGO / PN','COD','PN'),qtd:at('QUANTIDADE','QTD','QNTD','QTDE','QUANT'),un:at('UNIDADE','UN','UND'),desc:at('DESCRICAO','DESCRICAO DO ITEM','DESCR'),orient:at('ORIENTACAO','ORIENTACOES','ORIENTACAO DE INSTALACAO','ORIENTACOES DE INSTALACAO')};
       const tx=(l,i)=>i<0||l[i]===null||l[i]===undefined?'':String(l[i]).trim();
       const itens=rows.slice(hi+1).map(l=>{ const q=tx(l,C.qtd); const n=q===''?'':Number(q.replace(',','.'));
         return {id:uid(),cat:recF.cat,pn:tx(l,C.pn),qtd:q===''?'':(isFinite(n)?n:q),un:tx(l,C.un),desc:tx(l,C.desc),orient:tx(l,C.orient)}; }).filter(x=>x.pn||x.desc||x.orient);
@@ -3121,12 +3121,12 @@ async function recPdf(){
 }
 
 /* ---------- Maturidade da parada ----------
-   Pilares: Componente reserva (parque reserva + TAT), Peças, Recursos e Insumos (padrão dos componentes da troca,
+   Pilares: Componente reserva (parque reserva + TAT), Material de Instalação, Recursos e Insumos (padrão dos componentes da troca,
    com status na parada) e Plano de ação (peso executado ÷ peso total; "em andamento" não conta).
    Só "Disponível" conta como pronto. Pilar sem itens não entra no cálculo (aparece como aviso).
    Bloqueio: ação Crítica ou com Impacto na parada = SIM ainda não executada → Não liberada. */
 const MAT_ST=['Solicitado','Pendente de ação','Disponível'];
-const MAT_PIL=[['comp','Componente reserva'],['peca','Peças'],['recurso','Recursos'],['insumo','Insumos'],['acao','Plano de ação']];
+const MAT_PIL=[['comp','Componente reserva'],['peca','Material de Instalação'],['recurso','Recursos'],['insumo','Insumos'],['acao','Plano de ação']];
 const MAT_PESO_PADRAO={comp:2,peca:2,recurso:2,insumo:1,acao:1}, MAT_MIN_PADRAO=80;
 const MAT_FX={lib:{l:'Liberada',c:'#2E9E4F'},aten:{l:'Atenção',c:'#E8891C'},nao:{l:'Não liberada',c:'#D3392A'},sem:{l:'Sem dados',c:'#7A8089'}};
 const matCfgDoc = () => recAll().find(r=>r.id==='cfg-maturidade');
