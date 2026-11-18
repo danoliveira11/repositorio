@@ -2,6 +2,16 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Corrige seleção de Responsável na ação e reforça a persistência dos blocos recolhíveis em todas as telas
+
+Pedido: (1) o campo "Responsável (usuário do sistema)" na ação não deixava desmarcar um usuário já marcado com um clique normal; (2) revisar de novo o comportamento dos blocos que abrem/fecham sozinhos — o usuário reportou que, mesmo após a correção anterior (ver entrada abaixo, "Corrige blocos da Maturidade..."), o problema continuava acontecendo em algum lugar.
+
+- **Responsável da ação**: campo trocado de `<select multiple>` para uma lista de checkboxes (padrão `.complist`, já usado em outro lugar do app para o mesmo tipo de seleção). O `<select multiple>` exigia Ctrl/Cmd+clique para desmarcar um item sem limpar os outros — um clique normal sempre trocava a seleção inteira pelo item clicado, então não tinha como sobrar menos de um item marcado só com clique simples. Com o checkbox, marcar/desmarcar qualquer um dos usuários é um clique normal, sem modificador.
+- **Blocos recolhíveis (`<details>`) reabrindo sozinhos, causa real**: a correção anterior usava um único listener global (`document.addEventListener('toggle', fn, true)`) para gravar o estado em `detOpenState`. Testando com cliques reais (não só eventos sintéticos), esse listener global se mostrou pouco confiável para pelo menos um bloco (Indicadores → "Últimas alterações"): o clique real abria o bloco normalmente, mas o listener global não gravava o estado em `detOpenState`, então um redesenho da tela reabria/fechava o bloco de volta ao padrão.
+- **Correção**: trocado o listener global por `wireDetOpen(root)` — liga o `.ontoggle` diretamente em cada `<details data-pkey>` dentro do container informado. Chamado explicitamente no fim de toda função de render que gera algum desses blocos: `renderCard`/`renderTrocas` (pilares da Maturidade, "Como funciona esse índice?", "Configurar índice", Modelos de plano e seu histórico), `renderInd` ("Últimas alterações") e `renderCarteira` ("Configurar classificação dos status", que ainda não tinha nenhuma chamada cobrindo ele). Ver convenção atualizada em `CLAUDE.md`.
+- Arquivos: `index.html` (`aRespList`/`openAc`/`$('aSave').onclick` para o Responsável; `wireDetOpen` e suas chamadas para os blocos). Sem mudança de schema/Edge Function.
+- Validado com Playwright, com cliques e seleções reais (não eventos sintéticos): (a) marcar/desmarcar vários usuários no Responsável só com clique simples, inclusive confirmando o `respIds` salvo na ação; (b) abrir cada um dos blocos recolhíveis com clique real, forçar um redesenho real da tela (troca de filtro/select/frota, ou chamando a própria função de render de novo, simulando o refresh automático de 60s) e confirmar que o estado aberto/fechado se mantém — inclusive o caso de Indicadores que tinha falhado com a correção anterior.
+
 ## 2026-11-18 — Novo status "Geração de OS" no INFO CRC
 
 Pedido: adicionar o status "Geração de OS" ao INFO CRC.

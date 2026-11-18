@@ -939,7 +939,7 @@ body[data-view="carteira"] #vCarteira{display:block}
     <label class="f">Data previsto<input id="aPrev" type="date"></label>
     <label class="f">Data executado<input id="aExec" type="date"></label>
     <label class="f full">Responsável<input id="aResp" list="dlResp" autocomplete="off"></label>
-    <label class="f full">Responsável (usuário do sistema) <small>opcional, pode marcar mais de um: Ctrl/Cmd+clique para selecionar vários. Cada um vinculado aqui pode marcar execução e anexar evidências desta ação no próprio site</small><select id="aRespId" multiple size="5"></select></label>
+    <div class="f full"><span>Responsável (usuário do sistema) <small>opcional, marque quantos quiser — cada um vinculado aqui pode marcar execução e anexar evidências desta ação no próprio site</small></span><div class="complist" id="aRespList" role="group" aria-label="Responsáveis"></div></div>
     <label class="f">Prioridade<select id="aPrio"><option value=""></option><option>Crítica</option><option>Alta</option><option>Média</option><option>Baixa</option></select></label>
     <label class="f">Impacto na parada<select id="aImp"><option value=""></option><option>SIM</option><option>NÃO</option></select></label>
     <label class="f full">Observação / justificativa<textarea id="aObs"></textarea></label>
@@ -1773,6 +1773,7 @@ function renderCard(id){
   $('acQ').oninput=e=>{ acFilter.q=e.target.value; const pos=e.target.selectionStart; renderCard(id); const q=$('acQ'); q.focus(); q.setSelectionRange(pos,pos); };
   $('vCard').querySelectorAll('.ct-fq').forEach(el=>{ const key=el.dataset.ctf; el.oninput=e=>{ ctFilter[key]=e.target.value; const pos=e.target.selectionStart; renderCard(id); const ni=$('vCard').querySelector(`[data-ctf="${key}"]`); if(ni){ ni.focus(); ni.setSelectionRange(pos,pos); } }; });
   $('vCard').querySelectorAll('.ct-fsel').forEach(el=>{ const key=el.dataset.ctf; el.onchange=e=>{ ctFilter[key]=e.target.value; renderCard(id); }; });
+  wireDetOpen($('vCard'));
   kpiCores(); hydrateImgs(c);
 }
 /* ---------- Imagens do plano (Supabase Storage; fora dele, guardadas no próprio card) ---------- */
@@ -1943,6 +1944,7 @@ function renderTrocas(){
     <div class="panel"><div class="twrap"><table><thead><tr><th>Frota</th><th>Status</th><th>Semana</th><th>Parada</th><th>Início</th><th>Término</th><th>Componente(s)</th>
       <th class="num">Ações</th><th class="num">Executadas</th><th class="num">Vencidas</th><th>Maturidade</th></tr></thead>
       <tbody>${rows||(ro()?'<tr class="empty-row"><td colspan="11">Nenhuma troca cadastrada.</td></tr>':'<tr class="empty-row"><td colspan="11">Nenhuma troca cadastrada. Use “Novo card”.</td></tr>')}</tbody></table></div></div>${modelosHtml()}`;
+  wireDetOpen($('vCard'));
 }
 function renderTabs(){
   const t=[['plan','Planejamento',lastPlan],['acoes','Plano de ação','#/acoes'],['week','Gantt semanal','#/semana'],['card','Plano de troca do caminhão','#/card'],['ind','Indicadores','#/indicadores'],
@@ -2058,8 +2060,8 @@ function modelosHtml(){
     <div class="atools"><button class="btn lt" data-mimp>Importar modelo (Excel)</button></div>
     ${ms.length?`<div class="twrap"><table><thead><tr><th>Componente</th><th class="num">Edição</th><th class="num">Ações</th><th>Origem</th><th>Atualizado</th><th></th></tr></thead><tbody>${
       ms.map(m=>{ const hist=m.historico||[];
-        return `<tr class="nolink"><td><details><summary>${esc(compLabel(m.comp))}</summary>${acoesHtml(m.acoes)}
-          ${hist.length?`<details class="mdl-hist"><summary>Histórico (${hist.length} edição${hist.length>1?'ões':''} anterior${hist.length>1?'es':''})</summary>${
+        return `<tr class="nolink"><td><details data-pkey="modelo-${esc(m.comp)}"${detOpen('modelo-'+m.comp,false)?' open':''}><summary>${esc(compLabel(m.comp))}</summary>${acoesHtml(m.acoes)}
+          ${hist.length?`<details class="mdl-hist" data-pkey="modelo-hist-${esc(m.comp)}"${detOpen('modelo-hist-'+m.comp,false)?' open':''}><summary>Histórico (${hist.length} edição${hist.length>1?'ões':''} anterior${hist.length>1?'es':''})</summary>${
             hist.map(h=>`<div class="mdl-hv"><p class="count">Edição ${h.versao||'–'} · ${esc(h.origem||'')} · ${h.atualizado?fmtTs(h.atualizado):''}</p>${acoesHtml(h.acoes)}</div>`).join('')
           }</details>`:''}</details></td>
         <td class="num">${m.versao||1}</td><td class="num">${m.acoes.length}</td><td class="nowrap">${esc(m.origem||'')}</td><td class="nowrap">${m.atualizado?fmtTs(m.atualizado):''}</td>
@@ -2322,8 +2324,9 @@ function renderInd(){
     </div>
     <div class="sec"><h3>Próximas paradas <small class="count">próximos 21 dias${chips?' · com os filtros de seleção':''}</small></h3>
       ${proxRows?`<div class="twrap"><table><thead><tr><th>Frota</th><th>Início</th><th>Parada</th><th>Componente(s)</th><th class="num">Tempo</th><th>Plano de ação</th><th>Pontos de atenção</th></tr></thead><tbody>${proxRows}</tbody></table></div>`:'<p class="empty">Nenhuma parada prevista nos próximos 21 dias.</p>'}</div>
-    ${podeGerenciar()?`<details class="sec idet"><summary><h3>Últimas alterações</h3></summary>${histHtml(allHist().slice(-30).reverse(),true)}</details>`:''}`;
+    ${podeGerenciar()?`<details class="sec idet" data-pkey="indhist"${detOpen('indhist',false)?' open':''}><summary><h3>Últimas alterações</h3></summary>${histHtml(allHist().slice(-30).reverse(),true)}</details>`:''}`;
   $('vInd').querySelectorAll('[data-indf]').forEach(el=>el.onchange=()=>{ indF[el.dataset.indf]=el.value; renderInd(); });
+  wireDetOpen($('vInd'));
 }
 $('vInd').addEventListener('click',e=>{
   if(e.target.closest('[data-open]')) return;            // ↗ abre o plano de troca (handler geral)
@@ -3277,6 +3280,7 @@ function renderCarteira(){
     log(null,'Carteira Geral','Configuração de classificação de status atualizada');
     save(); refresh(); toast('Classificação salva.');
   };
+  wireDetOpen($('vCarteira'));
 }
 const ctgdlg=$('ctgdlg'); let ctgEdit=null;
 function openCtg(id){
@@ -3490,7 +3494,7 @@ const MAT_PIL_DESC={
 };
 const detOpenState={};
 const detOpen=(key,def)=>key in detOpenState?detOpenState[key]:def;
-document.addEventListener('toggle',e=>{ const el=e.target; if(el&&el.tagName==='DETAILS'&&el.dataset.pkey) detOpenState[el.dataset.pkey]=el.open; },true);
+function wireDetOpen(root){ if(!root) return; root.querySelectorAll('details[data-pkey]').forEach(d=>{ d.ontoggle=()=>{ detOpenState[d.dataset.pkey]=d.open; }; }); }
 function matInfoHtml(m){
   return `<details class="mat-det" data-pkey="matinfo"${detOpen('matinfo',false)?' open':''}><summary>Como funciona esse índice?</summary>
     <div class="mat-infob">
@@ -3982,7 +3986,7 @@ function openAc(cid,aid){
   $('aPonto').value=a.ponto; $('aAcao').value=a.acao; $('aPrev').value=a.previsto; $('aExec').value=a.executado;
   $('aResp').value=a.resp; $('aObs').value=a.obs; $('aPrio').value=a.prioridade; $('aImp').value=a.impacto;
   const respSel=new Set(respIdsOf(a));
-  $('aRespId').innerHTML=allPerfis.map(p=>`<option value="${p.user_id}"${respSel.has(p.user_id)?' selected':''}>${esc(p.nome||p.usuario)}</option>`).join('');
+  $('aRespList').innerHTML=allPerfis.length?allPerfis.map(p=>`<label><input type="checkbox" value="${p.user_id}"${respSel.has(p.user_id)?' checked':''}>${esc(p.nome||p.usuario)}</label>`).join(''):'<p class="count" style="padding:6px">Nenhum usuário cadastrado ainda.</p>';
   $('dlPontos').innerHTML=[...new Set(acCard.acoes.map(x=>x.ponto).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
   $('dlResp').innerHTML=[...new Set(state.cards.flatMap(c=>c.acoes.map(x=>x.resp)).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
   $('aDel').style.visibility=acEdit?'visible':'hidden'; $('aErr').textContent='';
@@ -3992,7 +3996,7 @@ function openAc(cid,aid){
 $('aCancel').onclick=()=>adlg.close();
 $('aSave').onclick=()=>{
   const d={ponto:$('aPonto').value.trim(),acao:$('aAcao').value.trim(),previsto:$('aPrev').value,executado:$('aExec').value,
-    resp:$('aResp').value.trim(),respIds:[...$('aRespId').selectedOptions].map(o=>o.value),obs:$('aObs').value.trim(),prioridade:$('aPrio').value,impacto:$('aImp').value};
+    resp:$('aResp').value.trim(),respIds:[...$('aRespList').querySelectorAll('input:checked')].map(i=>i.value),obs:$('aObs').value.trim(),prioridade:$('aPrio').value,impacto:$('aImp').value};
   if(!d.acao){ $('aErr').textContent='Descreva a ação gerada.'; $('aAcao').focus(); return; }
   if(acEdit){ const df=diffOf(ACAMPOS,acEdit,d); Object.assign(acEdit,d); if(df) log(acCard,'Ação alterada',`Ação ${acCard.acoes.indexOf(acEdit)+1}: ${df}`); }
   else { // nova ação entra logo após a última do mesmo ponto a discutir
@@ -4105,7 +4109,7 @@ anxDrop.addEventListener('dragover',e=>{ const {a}=anxCur(); if(ro()&&!podeResp(
 anxDrop.addEventListener('dragleave',()=>anxDrop.classList.remove('over'));
 anxDrop.addEventListener('drop',e=>{ e.preventDefault(); anxDrop.classList.remove('over'); const {a}=anxCur(); if((!ro()||podeResp(a))&&e.dataTransfer.files.length) addAnexos([...e.dataTransfer.files]); });
 $('aAnx').onclick=()=>{ if(acEdit) openAnx(acCard.id,acEdit.id); };
-$('aRespId').onchange=()=>{ const opts=[...$('aRespId').selectedOptions]; if(opts.length&&!$('aResp').value.trim()) $('aResp').value=opts.map(o=>o.textContent).join(' / '); };
+$('aRespList').addEventListener('change',()=>{ const nomes=[...$('aRespList').querySelectorAll('input:checked')].map(i=>i.parentElement.textContent.trim()); if(nomes.length&&!$('aResp').value.trim()) $('aResp').value=nomes.join(' / '); });
 
 /* ---------- Minhas ações (ações vinculadas a mim como responsável, ainda não executadas) ---------- */
 function minhasAcoes(){
