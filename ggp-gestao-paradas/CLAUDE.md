@@ -58,7 +58,7 @@ Todas as "coleções" do app imitam um banco de documentos (ao estilo Firestore)
 
 RLS usa a função SQL `meu_perfil()` (lê `perfis` pelo `auth.uid()` da sessão). **Um viewer nunca escreve direto em nenhuma tabela.** A única exceção (responsável de uma ação) passa por Edge Function com service role — nunca por RLS alterada para permitir viewer.
 
-Cada item de `cards[i].acoes[]` tem: `id, ponto, acao, previsto, executado, resp (texto livre), respId (uuid do usuário, opcional), obs, prioridade, impacto, anexos[]`. `anexos[i]` tem `id, nome, tipo, tam, ts, uid (quem enviou), path` (caminho no bucket `anexos`, formato `${cardId}/${acaoId}/${anexoId}.ext`).
+Cada item de `cards[i].acoes[]` tem: `id, ponto, acao, previsto, executado, resp (texto livre, pode ter vários nomes separados por "/"), respIds (array de uuids de usuários, opcional, pode ter mais de um), obs, prioridade, impacto, anexos[]`. Use sempre o helper `respIdsOf(a)` para ler os responsáveis vinculados — ele também lê o campo antigo `respId` (singular, string) de ações criadas antes desta migração, então nunca leia `a.respId`/`a.respIds` direto. `anexos[i]` tem `id, nome, tipo, tam, ts, uid (quem enviou), path` (caminho no bucket `anexos`, formato `${cardId}/${acaoId}/${anexoId}.ext`).
 
 Buckets de Storage: `anexos` (INSERT/DELETE só editor/dono via RLS direta; signed upload URL contorna isso para o responsável — ver Edge Functions) e `imagens` (mesma regra, só editor/dono grava).
 
@@ -66,8 +66,10 @@ Buckets de Storage: `anexos` (INSERT/DELETE só editor/dono via RLS direta; sign
 
 - **dono**: acesso completo, inclusive gerenciar usuários (aba "Usuários": criar/remover) e configurar pesos/mínimo do índice de maturidade.
 - **editor**: edita tudo (trocas, ações, modelos, parque, CRC, recursos) menos gestão de usuários.
-- **viewer**: só leitura — **exceto** quando é o "responsável" vinculado (`acoes[i].respId === seu user_id`) de uma ação específica. Nesse caso, só para aquela ação, pode: marcar/desmarcar a data de execução e enviar/apagar os próprios anexos. Tudo isso passa pela Edge Function `acao-responsavel`; o cliente nunca grava direto na tabela `cards` nesse caminho.
-- No JS: `role` é `'dono'|'editor'|'viewer'|'local'|'loading'` (`'local'` = site sem Supabase configurado, tudo liberado e salvo só no navegador). `ro()` → true para viewer/loading. `podeReport()` → true para editor/dono/local (quem pode emitir o Report de Grandes Paradas). `podeResp(a)` → true se o usuário logado é o responsável vinculado daquela ação.
+- **viewer**: só leitura do quadro/planejamento/plano de ação/indicadores — **exceto** quando é um dos "responsáveis" vinculados (`respIdsOf(a)` inclui seu `user_id`) de uma ação específica. Nesse caso, só para aquela ação, pode: marcar/desmarcar a data de execução e enviar/apagar os próprios anexos. Tudo isso passa pela Edge Function `acao-responsavel`; o cliente nunca grava direto na tabela `cards` nesse caminho.
+- **Telas restritas a Editor e Dono** (viewer não vê nem a aba, nem a rota por hash direto): Parque reserva, Padrão de recursos, INFO CRC (sub-rota do Parque), Feedback da parada, Histórico (tanto o do card quanto "Últimas alterações" em Indicadores). Usuários continua só para Dono. Report continua Editor/Dono.
+- No JS: `role` é `'dono'|'editor'|'viewer'|'local'|'loading'` (`'local'` = site sem Supabase configurado, tudo liberado e salvo só no navegador). `ro()` → true para viewer/loading (bloqueia escrita fora da exceção do responsável). `podeReport()`/`podeGerenciar()` → true para editor/dono/local (mesma regra hoje; mantidos como funções separadas porque o Report pode um dia ter regra própria). `podeResp(a)` → true se o usuário logado está entre os responsáveis vinculados daquela ação.
+- Botões de escrita (Nova ação, Editar dados da troca, Novo card, Iniciar execução/Concluir, Importar/Aplicar modelo, Adicionar imagens, Usuários/Parque/CRC/Recursos etc.) ficam **escondidos** para `body.ro` via uma regra CSS única (`body.ro #newCard, body.ro [data-edit], ...{display:none!important}`, perto do topo do `<style>`) — ao adicionar um novo botão de escrita no quadro/card/planejamento, inclua o seletor dele nessa mesma regra em vez de confiar só no bloqueio de clique. Os anexos (`#anxAdd`, `[data-anxdel]`) são a exceção: são escondidos dinamicamente em `renderAnx()` porque a permissão depende de qual ação/anexo é (responsável só mexe na própria ação e só apaga o que o próprio usuário enviou).
 
 ## Edge Functions (Supabase)
 
@@ -84,7 +86,7 @@ Pré-requisitos de ambiente (fazer uma vez por sessão nova, se ainda não estiv
 
 Funções hoje:
 - **`admin-users`**: cria/remove usuários Auth. Só age se `perfis.perfil(caller)==='dono'`. Usado pela aba "Usuários" (botões "Adicionar usuário"/"Remover").
-- **`acao-responsavel`**: dá ao responsável (viewer vinculado) de uma ação um caminho seguro para marcar execução e gerenciar os próprios anexos daquela ação específica, sem outro acesso de escrita. Ações aceitas: `status` (seta/limpa `executado`), `get_upload_url` (gera signed upload URL do bucket `anexos`, válida só para aquele caminho — é isso que contorna a RLS de Storage sem abrir mão dela para o resto), `confirm_anexo` (grava a entrada do anexo no card), `anexo_del` (só apaga anexo que o próprio usuário enviou, a menos que seja editor/dono).
+- **`acao-responsavel`**: dá a qualquer um dos responsáveis vinculados (array `respIds`, com fallback para o antigo `respId` singular) de uma ação um caminho seguro para marcar execução e gerenciar os próprios anexos daquela ação específica, sem outro acesso de escrita. Ações aceitas: `status` (seta/limpa `executado`), `get_upload_url` (gera signed upload URL do bucket `anexos`, válida só para aquele caminho — é isso que contorna a RLS de Storage sem abrir mão dela para o resto), `confirm_anexo` (grava a entrada do anexo no card), `anexo_del` (só apaga anexo que o próprio usuário enviou, a menos que seja editor/dono).
 
 Qualquer Edge Function nova: sempre valide o JWT de quem chama (`admin.auth.getUser(token)`) e o perfil real (`perfis`, lido com o client de *service role*) — nunca confie em nada que o corpo da requisição diga sobre "quem está chamando".
 
@@ -100,8 +102,18 @@ Há uma explicação disso já embutida no site para qualquer usuário (bloco re
 - Estilo do JS existente: compacto (poucos espaços supérfluos), `const nome = x => ...` para helpers puros, `function nome(){}` quando precisa estar disponível antes de ser definido no arquivo (hoisting). Siga o estilo ao redor do trecho que for tocar; não reformate o que não for alterar.
 - Sem comentários de explicação espalhados pelo meio das funções — o "porquê" de cada seção já está no cabeçalho `/* ---------- ... ---------- */` dela, e decisões maiores ficam aqui no CLAUDE.md, não inline no código.
 - `log(card, tipo, detalhe)` grava no histórico do próprio card (`card.hist`, salvo no próximo `save()`, aparece na aba "Histórico" do card). `log(null, tipo, detalhe)` ou `log(card, tipo, detalhe, true)` grava na tabela global `eventos` (RLS editor/dono) — use isso para algo que não é sobre uma troca específica (parque, CRC, recursos, config de maturidade) ou quando o card está sendo excluído.
-- Para vincular qualquer campo de texto livre a um usuário cadastrado, siga o padrão já usado em `acoes[i].resp`/`respId`: mantenha o campo de texto livre (compatibilidade com filtros/exportação/modelos existentes) e **adicione** um campo `*Id` (uuid) à parte — nunca substitua o texto livre por uma referência obrigatória, porque quebra dados históricos e fluxos de import de planilha.
+- Para vincular qualquer campo de texto livre a um usuário cadastrado, siga o padrão já usado em `acoes[i].resp`/`respIds`: mantenha o campo de texto livre (compatibilidade com filtros/exportação/modelos existentes) e **adicione** um campo `*Id`/`*Ids` (uuid ou array de uuids) à parte — nunca substitua o texto livre por uma referência obrigatória, porque quebra dados históricos e fluxos de import de planilha. Ao ler esse vínculo, sempre passe por um helper tipo `respIdsOf()` que também entende o formato antigo, em vez de ler o campo novo direto — evita quebrar dado gravado antes da migração.
 - Toda gravação de viewer (fora do board/leitura) tem que passar por Edge Function com service role, nunca por afrouxar uma policy de RLS para aceitar o role `viewer`.
+- Tabelas com muitas colunas (ex.: as duas tabelas de "Plano de ação") ganharam a classe `.tbl-ac`, com fonte/padding mais compactos e colunas mescladas (Farol+Status, Peso+%avanço+Peso realizado) para caber sem rolagem horizontal em telas de notebook (~1366px). Ao adicionar coluna numa tabela densa, prefira mesclar numa célula existente (com `<br><small>`) a criar uma `<th>` nova.
+
+## Testar visualmente sem credenciais reais do Supabase
+
+Não é preciso logar de verdade para ver o layout funcionando. O Playwright já vem instalado neste ambiente (`require('playwright')` do Node). Truque:
+
+1. Sirva o arquivo local: `python3 -m http.server 8731` nesta pasta.
+2. No Playwright, bloqueie o script do Supabase antes de navegar: `page.route('**/supabase.js', route => route.abort())`. Sem `window.supabase`, o app entra sozinho em `role='local'` (modo totalmente liberado, sem tela de login) — bom para ver o layout geral e qualquer tela de Editor/Dono.
+3. Para simular especificamente um **Visualizador** (`ro()`, botões escondidos, exceção do responsável) sem precisar de login real: depois de carregado, rode via `page.evaluate` algo como `role='viewer'; myId='algum-uuid'; sb={}; DB={}; applyRole();` e então `go('#/card/...')`. Isso é só manipulação de variáveis globais do próprio JS (todas `let` no escopo do `<script>`, acessíveis sem o prefixo `window.`), não fala com o Supabase de verdade — serve só para checar visual/condicional, nunca para testar a regra de RLS/Edge Function em si (essa só se confirma com um usuário real).
+4. Para inspecionar overflow/largura de tabela sem depender de print: `el.getBoundingClientRect()` e `wrap.scrollWidth > wrap.clientWidth` via `page.evaluate`, mais barato em tokens do que só olhar screenshot.
 
 ## Deploy / publicar uma alteração
 

@@ -61,7 +61,8 @@ Deno.serve(async (req) => {
 
   const { data: perfil } = await admin.from("perfis").select("perfil").eq("user_id", user.id).maybeSingle();
   const souEditor = !!perfil && (perfil.perfil === "editor" || perfil.perfil === "dono");
-  const souResponsavel = !!acao.respId && acao.respId === user.id;
+  const respIds: string[] = Array.isArray(acao.respIds) && acao.respIds.length ? acao.respIds : (acao.respId ? [acao.respId] : []);
+  const souResponsavel = respIds.includes(user.id);
   if (!souEditor && !souResponsavel) return json({ error: "Você não pode alterar esta ação" }, 403);
 
   const numAcao = idx + 1;

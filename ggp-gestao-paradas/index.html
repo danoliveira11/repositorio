@@ -597,6 +597,13 @@ td.num,th.num{text-align:right;white-space:nowrap}
 td.nowrap{white-space:nowrap}
 td.wide{min-width:280px}
 td.mid{min-width:180px}
+.tbl-ac{font-size:13px}
+.tbl-ac th{font-size:13.5px;padding:6px 7px;white-space:normal}
+.tbl-ac td{padding:6px 7px}
+.tbl-ac td.mid{min-width:110px}
+.tbl-ac td.wide{min-width:170px}
+.tbl-ac td.obs{max-width:180px;white-space:normal}
+.tbl-ac td.num small{font-weight:400;color:var(--muted);white-space:nowrap}
 .grp td{background:var(--surface-2);font-weight:600;cursor:default;font-size:13px;color:var(--muted)}
 .empty-row td{color:var(--muted);text-align:center;cursor:default;padding:18px}
 
@@ -759,6 +766,8 @@ body[data-view="recursos"] #vRec{display:block}
 /* Maturidade da parada */
 .mat-top{display:grid;grid-template-columns:auto minmax(220px,1fr) minmax(300px,1.3fr);gap:18px;align-items:start}
 @media (max-width:980px){.mat-top{grid-template-columns:auto 1fr}.mat-pls{grid-column:1/-1}}
+.mat-pls{border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:12px 14px 6px}
+.mat-pls h4{margin:0 0 10px;font-size:13px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .mat-ring{--p:0;--m:#7A8089;width:132px;height:132px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;
   background:radial-gradient(closest-side,var(--surface) 76%,transparent 77% 100%),conic-gradient(var(--m) calc(var(--p)*1%),var(--surface-2) 0)}
 .mat-ring b{font-family:var(--cond);font-size:38px;font-weight:800;line-height:1;color:var(--m)}
@@ -917,7 +926,7 @@ body[data-view="recursos"] #vRec{display:block}
     <label class="f">Data previsto<input id="aPrev" type="date"></label>
     <label class="f">Data executado<input id="aExec" type="date"></label>
     <label class="f full">Responsável<input id="aResp" list="dlResp" autocomplete="off"></label>
-    <label class="f full">Responsável (usuário do sistema) <small>opcional: quem for vinculado aqui pode marcar execução e anexar evidências desta ação no próprio site</small><select id="aRespId"><option value="">— nenhum —</option></select></label>
+    <label class="f full">Responsável (usuário do sistema) <small>opcional, pode marcar mais de um: Ctrl/Cmd+clique para selecionar vários. Cada um vinculado aqui pode marcar execução e anexar evidências desta ação no próprio site</small><select id="aRespId" multiple size="5"></select></label>
     <label class="f">Prioridade<select id="aPrio"><option value=""></option><option>Crítica</option><option>Alta</option><option>Média</option><option>Baixa</option></select></label>
     <label class="f">Impacto na parada<select id="aImp"><option value=""></option><option>SIM</option><option>NÃO</option></select></label>
     <label class="f full">Observação / justificativa<textarea id="aObs"></textarea></label>
@@ -1203,6 +1212,7 @@ let DB=null, USER=null, myId=null, role = SHARED ? 'loading' : 'local';
 const ROLE_LABEL={dono:'Dono (admin)',editor:'Editor',viewer:'Visualizador',loading:'carregando…',local:''};
 const ro = () => role==='viewer' || role==='loading';
 const podeReport = () => role==='editor' || role==='dono' || role==='local';   // emissão do report: só Editor e Dono
+const podeGerenciar = () => role==='editor' || role==='dono' || role==='local';   // Histórico, Feedback da parada, Padrão de recursos, Parque reserva: só Editor e Dono (Visualizador não vê, nem o responsável de uma ação)
 function prefsLoad(){ try{ return JSON.parse(localStorage.getItem(PREFS)||'{}')||{}; }catch(e){ return {}; } }
 function prefsSave(){ try{ localStorage.setItem(PREFS,JSON.stringify({start:state.start,weeks:state.weeks,gzoom:typeof gzoom==='string'?gzoom:undefined,planMes:typeof planMes==='string'?planMes:''})); }catch(e){} }
 let state = SHARED ? Object.assign(defaultState(),{cards:[],modelos:[],eventos:[],parque:[],crc:[],recursos:[]},prefsLoad()) : load();
@@ -1377,8 +1387,9 @@ async function chamarAcaoResp(body){
   if(!res.ok) throw new Error(j.error||('Erro '+res.status));
   return j;
 }
-const podeResp = a => !!(a&&a.respId&&a.respId===myId);
-const respLabel = a => a&&a.respId ? (nameOf(a.respId)||a.resp||'') : ((a&&a.resp)||'');
+const respIdsOf = a => !a?[]:Array.isArray(a.respIds)&&a.respIds.length?a.respIds:(a.respId?[a.respId]:[]);
+const podeResp = a => respIdsOf(a).includes(myId);
+const respLabel = a => { const ids=respIdsOf(a); if(!ids.length) return (a&&a.resp)||''; const nomes=ids.map(nameOf).filter(Boolean); return nomes.length?nomes.join(', '):((a&&a.resp)||''); };
 async function renderUsuarios(){
   const v=$('vUsers');
   if(role!=='dono'){ v.innerHTML='<p class="empty">Somente o Dono gerencia usuários.</p>'; return; }
@@ -1638,16 +1649,16 @@ function renderCard(id){
     return true; });
   let lastPonto=null;
   const rows=list.map(({a,i})=>{
-    const grp = a.ponto!==lastPonto ? `<tr class="grp"><td colspan="15">${esc(a.ponto||'Sem ponto a discutir')}</td></tr>` : '';
+    const grp = a.ponto!==lastPonto ? `<tr class="grp"><td colspan="12">${esc(a.ponto||'Sem ponto a discutir')}</td></tr>` : '';
     lastPonto=a.ponto;
     const s2=acStatus(a), av=avancoOf(a), pr=pesoReal(a), pe=pesoOf(a);
     return grp+`<tr data-aid="${a.id}" data-cid="${c.id}" class="${podeResp(a)?'minha-ac':''}">
       <td class="num">${i+1}</td><td class="mid">${esc(a.ponto)}</td><td class="wide">${esc(a.acao)}</td>
       <td class="nowrap">${a.previsto?dmy(parse(a.previsto)):''}</td>
       <td class="nowrap">${a.executado?dmy(parse(a.executado)):`<button class="mini" data-exec="${a.id}" data-cid="${c.id}" title="Registrar execução com a data de hoje">Executar hoje</button>`}</td>
-      <td class="mid">${esc(respLabel(a))}</td><td class="mid">${esc(a.obs)}</td>
-      <td>${farolHtml(farolOf(a))}</td><td>${astHtml(s2)}</td><td>${esc(a.prioridade)}</td>
-      <td class="num">${pe??''}</td><td class="num">${av===null?'':pct(av)}</td><td class="num">${pr===null?'':fmtH(pr)}</td><td>${esc(a.impacto)}</td><td>${anxBtn(c,a)}</td></tr>`;
+      <td class="mid">${esc(respLabel(a))}</td><td class="mid obs">${esc(a.obs)}</td>
+      <td class="nowrap">${farolHtml(farolOf(a))} ${astHtml(s2)}</td><td>${esc(a.prioridade)}</td>
+      <td class="num nowrap">${pe??'–'}${av!==null?`<br><small>${pct(av)}${pr!==null?' · real '+fmtH(pr):''}</small>`:''}</td><td>${esc(a.impacto)}</td><td>${anxBtn(c,a)}</td></tr>`;
   }).join('');
   const opts=['','EXECUTADO','EXECUTADO FORA DO PRAZO','EM ANDAMENTO','PRAZO VENCIDO','__sem'].map(v=>
     `<option value="${v}" ${acFilter.status===v?'selected':''}>${v===''?'Todos os status':v==='__sem'?'Sem data prevista':v}</option>`).join('');
@@ -1692,14 +1703,14 @@ function renderCard(id){
         <select id="acSt" aria-label="Filtrar por status">${opts}</select>
         <input id="acQ" type="search" placeholder="Buscar responsável ou ação" value="${esc(acFilter.q)}">
       </div>
-      <div class="twrap"><table><thead><tr><th class="num">Item</th><th>Pontos a discutir</th><th>Ações geradas</th><th>Data previsto</th><th>Data executado</th>
-        <th>Responsável</th><th>Observação / justificativa</th><th>Farol</th><th>Status</th><th>Prioridade</th><th class="num">Peso</th><th class="num">% avanço</th><th class="num">Peso realizado</th><th>Impacto na parada</th><th>Anexos</th></tr></thead>
-        <tbody>${rows||`<tr class="empty-row"><td colspan="15">${(c.acoes||[]).length?'Nenhuma ação com esse filtro.':ro()?'Nenhuma ação cadastrada.':'Nenhuma ação cadastrada. Use “Nova ação” ou importe a planilha do plano.'}</td></tr>`}</tbody></table></div>
+      <div class="twrap"><table class="tbl-ac"><thead><tr><th class="num">Item</th><th>Pontos a discutir</th><th>Ações geradas</th><th>Data previsto</th><th>Data executado</th>
+        <th>Responsável</th><th>Observação</th><th>Status</th><th>Prioridade</th><th class="num">Peso / Avanço</th><th>Impacto</th><th>Anexos</th></tr></thead>
+        <tbody>${rows||`<tr class="empty-row"><td colspan="12">${(c.acoes||[]).length?'Nenhuma ação com esse filtro.':ro()?'Nenhuma ação cadastrada.':'Nenhuma ação cadastrada. Use “Nova ação” ou importe a planilha do plano.'}</td></tr>`}</tbody></table></div>
       <div class="legend-f">${Object.values(FAROL).map(f=>`<span><span class="farol ${f.cls}">${f.sym}</span>${f.label}</span>`).join('')}</div>
     </div>
     ${fbSecHtml(c)}
     ${imgsHtml(c)}
-    <div class="sec"><h3>Histórico</h3>${histHtml((c.hist||[]).slice(-80).reverse(),false)}</div>`;
+    ${podeGerenciar()?`<div class="sec"><h3>Histórico</h3>${histHtml((c.hist||[]).slice(-80).reverse(),false)}</div>`:''}`;
   $('acSt').onchange=e=>{ acFilter.status=e.target.value; renderCard(id); };
   $('acQ').oninput=e=>{ acFilter.q=e.target.value; const pos=e.target.selectionStart; renderCard(id); const q=$('acQ'); q.focus(); q.setSelectionRange(pos,pos); };
   kpiCores(); hydrateImgs(c);
@@ -1822,8 +1833,8 @@ function renderAcoes(){
       <td class="nowrap">${s?'SEM'+isoWeek(s.a):'–'}</td><td class="num">${i+1}</td><td class="mid">${esc(a.ponto)}</td><td class="wide">${esc(a.acao)}</td>
       <td class="nowrap">${a.previsto?dmy(parse(a.previsto)):''}</td>
       <td class="nowrap">${a.executado?dmy(parse(a.executado)):`<button class="mini" data-exec="${a.id}" data-cid="${c.id}" title="Registrar execução com a data de hoje">Executar hoje</button>`}</td>
-      <td class="mid">${esc(respLabel(a))}</td><td>${farolHtml(farolOf(a))}</td><td>${astHtml(acStatus(a))}</td><td>${esc(a.prioridade)}</td>
-      <td class="num">${pe??''}</td><td class="num">${av===null?'':pct(av)}</td><td class="num">${pr===null?'':fmtH(pr)}</td><td>${esc(a.impacto)}</td><td class="mid">${esc(a.obs)}</td><td>${anxBtn(c,a)}</td></tr>`; }).join('');
+      <td class="mid">${esc(respLabel(a))}</td><td class="nowrap">${farolHtml(farolOf(a))} ${astHtml(acStatus(a))}</td><td>${esc(a.prioridade)}</td>
+      <td class="num nowrap">${pe??'–'}${av!==null?`<br><small>${pct(av)}${pr!==null?' · real '+fmtH(pr):''}</small>`:''}</td><td>${esc(a.impacto)}</td><td class="mid obs">${esc(a.obs)}</td><td>${anxBtn(c,a)}</td></tr>`; }).join('');
   $('vAcoes').innerHTML=`
     <div class="vhead"><h2>Plano de ação<small>Todas as ações dos planos de troca</small></h2>
       <div class="meta"><b>${list.length}</b> de ${all.length} ações</div></div>
@@ -1839,9 +1850,9 @@ function renderAcoes(){
       <div class="kpi"><span>Sem data prevista</span><b>${p.semData}</b></div>
       <div class="kpi"><span>Peso / peso realizado</span><b>${fmtH(p.peso)} / ${fmtH(p.real)}</b></div>
     </div></div>
-    <div class="sec"><div class="twrap"><table><thead><tr><th>Frota</th><th>Semana parada</th><th class="num">Item</th><th>Pontos a discutir</th><th>Ações geradas</th><th>Data previsto</th><th>Data executado</th>
-      <th>Responsável</th><th>Farol</th><th>Status</th><th>Prioridade</th><th class="num">Peso</th><th class="num">% avanço</th><th class="num">Peso realizado</th><th>Impacto na parada</th><th>Observação / justificativa</th><th>Anexos</th></tr></thead>
-      <tbody>${rows||`<tr class="empty-row"><td colspan="17">${all.length?'Nenhuma ação com esses filtros.':ro()?'Nenhuma ação cadastrada ainda.':'Nenhuma ação cadastrada ainda. Abra uma troca em “Plano de troca do caminhão” para criar ou importar o plano.'}</td></tr>`}</tbody></table></div>
+    <div class="sec"><div class="twrap"><table class="tbl-ac"><thead><tr><th>Frota</th><th>Semana parada</th><th class="num">Item</th><th>Pontos a discutir</th><th>Ações geradas</th><th>Data previsto</th><th>Data executado</th>
+      <th>Responsável</th><th>Status</th><th>Prioridade</th><th class="num">Peso / Avanço</th><th>Impacto</th><th>Observação</th><th>Anexos</th></tr></thead>
+      <tbody>${rows||`<tr class="empty-row"><td colspan="14">${all.length?'Nenhuma ação com esses filtros.':ro()?'Nenhuma ação cadastrada ainda.':'Nenhuma ação cadastrada ainda. Abra uma troca em “Plano de troca do caminhão” para criar ou importar o plano.'}</td></tr>`}</tbody></table></div>
       <div class="legend-f">${Object.values(FAROL).map(f=>`<span><span class="farol ${f.cls}">${f.sym}</span>${f.label}</span>`).join('')}</div></div>`;
   $('vAcoes').querySelectorAll('[data-gf]').forEach(s=>s.onchange=()=>{ gf[s.dataset.gf]=s.value; renderAcoes(); });
   $('gq').oninput=e=>{ gf.q=e.target.value; const pos=e.target.selectionStart; renderAcoes(); const q=$('gq'); q.focus(); q.setSelectionRange(pos,pos); };
@@ -1874,7 +1885,9 @@ function renderTrocas(){
       <tbody>${rows||(ro()?'<tr class="empty-row"><td colspan="11">Nenhuma troca cadastrada.</td></tr>':'<tr class="empty-row"><td colspan="11">Nenhuma troca cadastrada. Use “Novo card”.</td></tr>')}</tbody></table></div></div>${modelosHtml()}`;
 }
 function renderTabs(){
-  const t=[['plan','Planejamento',lastPlan],['acoes','Plano de ação','#/acoes'],['week','Gantt semanal','#/semana'],['card','Plano de troca do caminhão','#/card'],['ind','Indicadores','#/indicadores'],['parque','Parque reserva','#/parque'],['recursos','Padrão de recursos','#/recursos'],...(podeReport()?[['report','Report','#/report']]:[]),...(role==='dono'?[['users','Usuários','#/usuarios']]:[])];
+  const t=[['plan','Planejamento',lastPlan],['acoes','Plano de ação','#/acoes'],['week','Gantt semanal','#/semana'],['card','Plano de troca do caminhão','#/card'],['ind','Indicadores','#/indicadores'],
+    ...(podeGerenciar()?[['parque','Parque reserva','#/parque'],['recursos','Padrão de recursos','#/recursos']]:[]),
+    ...(podeReport()?[['report','Report','#/report']]:[]),...(role==='dono'?[['users','Usuários','#/usuarios']]:[])];
   const cur=(view.type==='trocas'||view.type==='fb')?'card':view.type==='crc'?'parque':(view.type==='board'||view.type==='gantt')?'plan':view.type;
   $('planbar').innerHTML=`<span class="pb-t">Planejamento</span><div class="segs" role="group" aria-label="Visualização do planejamento">
     <button class="seg${view.type==='board'?' on':''}" data-go="#/" ${view.type==='board'?'aria-current="page"':''}>Kanban</button>
@@ -1903,7 +1916,7 @@ const CAMPOS=[['frota','Frota',v=>v||'–'],['inicio','Previsão de início',fmt
   ['parada','Parada',paradaPlana],['pm','Intervalo da PM',v=>v?v+' h':'–'],['backlogs','Backlogs',v=>v??'–'],
   ['tempo','Tempo da troca',v=>v==null?'–':fmtH(v)+' h'],['componentes','Componente(s)',v=>(v||[]).map(k=>compLabel(k)).join('; ')||'–'],['atencao','Ponto de atenção',v=>v||'–']];
 const ACAMPOS=[['ponto','Pontos a discutir',v=>v||'–'],['acao','Ação gerada',v=>trunc(v,60)||'–'],['previsto','Data previsto',fmtD],['executado','Data executado',fmtD],
-  ['resp','Responsável',v=>v||'–'],['respId','Responsável (usuário)',v=>v?nameOf(v):'–'],['obs','Observação',v=>trunc(v,60)||'–'],['prioridade','Prioridade',v=>v||'–'],['impacto','Impacto na parada',v=>v||'–']];
+  ['resp','Responsável',v=>v||'–'],['respIds','Responsável (usuário)',v=>(v&&v.length)?v.map(nameOf).join(', '):'–'],['obs','Observação',v=>trunc(v,60)||'–'],['prioridade','Prioridade',v=>v||'–'],['impacto','Impacto na parada',v=>v||'–']];
 const diffOf=(L,o,n)=>L.filter(([k])=>JSON.stringify(o[k]??null)!==JSON.stringify(n[k]??null)).map(([k,l,f])=>`${l}: ${f(o[k])} → ${f(n[k])}`).join('; ');
 function histHtml(list,showFrota){
   if(!list.length) return '<p class="empty">Nenhuma alteração registrada ainda.</p>';
@@ -2223,7 +2236,7 @@ function renderInd(){
     </div>
     <div class="sec"><h3>Próximas paradas <small class="count">próximos 21 dias${chips?' · com os filtros de seleção':''}</small></h3>
       ${proxRows?`<div class="twrap"><table><thead><tr><th>Frota</th><th>Início</th><th>Parada</th><th>Componente(s)</th><th class="num">Tempo</th><th>Plano de ação</th><th>Pontos de atenção</th></tr></thead><tbody>${proxRows}</tbody></table></div>`:'<p class="empty">Nenhuma parada prevista nos próximos 21 dias.</p>'}</div>
-    <details class="sec idet"><summary><h3>Últimas alterações</h3></summary>${histHtml(allHist().slice(-30).reverse(),true)}</details>`;
+    ${podeGerenciar()?`<details class="sec idet"><summary><h3>Últimas alterações</h3></summary>${histHtml(allHist().slice(-30).reverse(),true)}</details>`:''}`;
   $('vInd').querySelectorAll('[data-indf]').forEach(el=>el.onchange=()=>{ indF[el.dataset.indf]=el.value; renderInd(); });
 }
 $('vInd').addEventListener('click',e=>{
@@ -2471,6 +2484,7 @@ if(!SHARED&&!parque().length){ state.parque=JSON.parse(JSON.stringify(PQ_EXEMPLO
 
 const pqNum = v => v===null||v===undefined||v==='' ? '' : fmtH(Number(v));
 function renderParque(){
+  if(!podeGerenciar()){ $('vParque').innerHTML='<p class="empty">Somente Editor e Dono acessam o parque reserva.</p>'; return; }
   const all=parque();
   const q=pqf.q.toLowerCase();
   const list=all.filter(p=>(!pqf.frota||p.frota===pqf.frota)&&(!pqf.tipo||p.tipo===pqf.tipo)
@@ -2645,6 +2659,7 @@ function crcCardHtml(o,cor){
     <div class="crc-md">Modelo ${esc(String(o.modelo||'').trim()||'–')}</div></article>`;
 }
 function renderCrc(){
+  if(!podeGerenciar()){ $('vCrc').innerHTML='<p class="empty">Somente Editor e Dono acessam o INFO CRC.</p>'; return; }
   const all=crcAll(), list=crcList();
   // os blocos de status contam com os demais filtros, sem o próprio filtro de status
   const semSt=all.filter(o=>(!crcF.gestao||String(o.gestao||'').trim()===crcF.gestao)&&(!crcF.frota||crcFrota(o.modelo)===crcF.frota)
@@ -2869,6 +2884,7 @@ async function hydrateRec(root){
     if(it&&it.img){ const u=await imgUrl(it.img); if(u) el.src=u; } }
 }
 function renderRec(){
+  if(!podeGerenciar()){ $('vRec').innerHTML='<p class="empty">Somente Editor e Dono acessam o padrão de recursos.</p>'; return; }
   const comps=recComps();
   if(!recF.comp||!comps.includes(recF.comp)) recF.comp=comps[0];
   const q=normH(recF.q);
@@ -3172,7 +3188,7 @@ function matHtml(c){
       <div class="mat-sum"><div class="mat-fx" style="--m:${fx.c}">${fx.l}</div>
         <p class="count">Liberada com ${m.cfg.min}% ou mais e nenhum bloqueio. Só conta o que está <b>Disponível</b> (ou executado, no plano de ação).${m.iniciada?' Troca já iniciada.':''}</p>
         ${bloq}</div>
-      <div class="mat-pls">${barras}</div>
+      <div class="mat-pls"><h4>Pilares do índice</h4>${barras}</div>
     </div>
     ${avisos.length?`<ul class="mat-av">${avisos.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`:''}
     ${['comp','peca','recurso','insumo'].map(tab).join('')}
@@ -3601,12 +3617,12 @@ function openAc(cid,aid){
   if(ro()) return;
   acCard=findCard(cid); if(!acCard) return;
   acEdit=aid?acCard.acoes.find(a=>a.id===aid):null;
-  const a=acEdit||{ponto:'',acao:'',previsto:'',executado:'',resp:'',respId:'',obs:'',prioridade:'',impacto:''};
+  const a=acEdit||{ponto:'',acao:'',previsto:'',executado:'',resp:'',respIds:[],obs:'',prioridade:'',impacto:''};
   $('aTitle').textContent=acEdit?'Ação '+(acCard.acoes.indexOf(acEdit)+1)+' – '+acCard.frota:'Nova ação – '+acCard.frota;
   $('aPonto').value=a.ponto; $('aAcao').value=a.acao; $('aPrev').value=a.previsto; $('aExec').value=a.executado;
   $('aResp').value=a.resp; $('aObs').value=a.obs; $('aPrio').value=a.prioridade; $('aImp').value=a.impacto;
-  $('aRespId').innerHTML='<option value="">— nenhum —</option>'+allPerfis.map(p=>`<option value="${p.user_id}">${esc(p.nome||p.usuario)}</option>`).join('');
-  $('aRespId').value=a.respId||'';
+  const respSel=new Set(respIdsOf(a));
+  $('aRespId').innerHTML=allPerfis.map(p=>`<option value="${p.user_id}"${respSel.has(p.user_id)?' selected':''}>${esc(p.nome||p.usuario)}</option>`).join('');
   $('dlPontos').innerHTML=[...new Set(acCard.acoes.map(x=>x.ponto).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
   $('dlResp').innerHTML=[...new Set(state.cards.flatMap(c=>c.acoes.map(x=>x.resp)).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
   $('aDel').style.visibility=acEdit?'visible':'hidden'; $('aErr').textContent='';
@@ -3616,7 +3632,7 @@ function openAc(cid,aid){
 $('aCancel').onclick=()=>adlg.close();
 $('aSave').onclick=()=>{
   const d={ponto:$('aPonto').value.trim(),acao:$('aAcao').value.trim(),previsto:$('aPrev').value,executado:$('aExec').value,
-    resp:$('aResp').value.trim(),respId:$('aRespId').value,obs:$('aObs').value.trim(),prioridade:$('aPrio').value,impacto:$('aImp').value};
+    resp:$('aResp').value.trim(),respIds:[...$('aRespId').selectedOptions].map(o=>o.value),obs:$('aObs').value.trim(),prioridade:$('aPrio').value,impacto:$('aImp').value};
   if(!d.acao){ $('aErr').textContent='Descreva a ação gerada.'; $('aAcao').focus(); return; }
   if(acEdit){ const df=diffOf(ACAMPOS,acEdit,d); Object.assign(acEdit,d); if(df) log(acCard,'Ação alterada',`Ação ${acCard.acoes.indexOf(acEdit)+1}: ${df}`); }
   else { // nova ação entra logo após a última do mesmo ponto a discutir
@@ -3649,11 +3665,14 @@ function anxCur(){ const c=findCard(anx.cid), a=c&&(c.acoes||[]).find(x=>x.id===
 function renderAnx(){
   const {c,a}=anxCur(); if(!a){ anxdlg.close(); return; }
   const l=a.anexos||[];
+  const podeEnviar = !ro()||podeResp(a);
   $('anxTitle').textContent=`Anexos da ação ${c.acoes.indexOf(a)+1} – ${c.frota}`;
   $('anxAcao').textContent=a.acao||'';
-  $('anxList').innerHTML = l.length ? l.map(x=>`<div class="anx-row"><span class="anx-ext">${esc((extOf(x.nome)||'arq').toUpperCase())}</span>
+  $('anxDrop').hidden=!podeEnviar;
+  $('anxList').innerHTML = l.length ? l.map(x=>{ const podeExcluir = !ro()||x.uid===myId;
+    return `<div class="anx-row"><span class="anx-ext">${esc((extOf(x.nome)||'arq').toUpperCase())}</span>
       <div class="anx-info"><b title="${esc(x.nome)}">${esc(x.nome)}</b><span>${x.tam?fmtTam(x.tam)+' · ':''}enviado em ${fmtTs(x.ts)}${x.uid?' por '+esc(nameOf(x.uid)):''}</span></div>
-      <button class="btn lt" data-anxdl="${x.id}">Baixar</button><button class="btn ghost" data-anxdel="${x.id}" title="Excluir anexo">Excluir</button></div>`).join('')
+      <button class="btn lt" data-anxdl="${x.id}">Baixar</button>${podeExcluir?`<button class="btn ghost" data-anxdel="${x.id}" title="Excluir anexo">Excluir</button>`:''}</div>`; }).join('')
     : `<p class="empty">${ro()&&!podeResp(a)?'Nenhum anexo nesta ação.':'Nenhum anexo ainda. Fotos, relatórios, planilhas, PDFs ou e-mails salvos.'}</p>`;
 }
 function openAnx(cid,aid){ anx={cid,aid}; renderAnx(); if(!anxdlg.open) anxdlg.showModal(); }
@@ -3726,12 +3745,12 @@ anxDrop.addEventListener('dragover',e=>{ const {a}=anxCur(); if(ro()&&!podeResp(
 anxDrop.addEventListener('dragleave',()=>anxDrop.classList.remove('over'));
 anxDrop.addEventListener('drop',e=>{ e.preventDefault(); anxDrop.classList.remove('over'); const {a}=anxCur(); if((!ro()||podeResp(a))&&e.dataTransfer.files.length) addAnexos([...e.dataTransfer.files]); });
 $('aAnx').onclick=()=>{ if(acEdit) openAnx(acCard.id,acEdit.id); };
-$('aRespId').onchange=()=>{ const sel=$('aRespId'); if(sel.value&&!$('aResp').value.trim()){ const opt=sel.selectedOptions[0]; $('aResp').value=opt?opt.textContent:''; } };
+$('aRespId').onchange=()=>{ const opts=[...$('aRespId').selectedOptions]; if(opts.length&&!$('aResp').value.trim()) $('aResp').value=opts.map(o=>o.textContent).join(' / '); };
 
 /* ---------- Minhas ações (ações vinculadas a mim como responsável, ainda não executadas) ---------- */
 function minhasAcoes(){
   const out=[];
-  state.cards.forEach(c=>(c.acoes||[]).forEach(a=>{ if(a.respId&&a.respId===myId&&!a.executado) out.push({c,a}); }));
+  state.cards.forEach(c=>(c.acoes||[]).forEach(a=>{ if(podeResp(a)&&!a.executado) out.push({c,a}); }));
   return out.sort((x,y)=>{ const px=x.a.previsto||'9999-99-99', py=y.a.previsto||'9999-99-99'; return px<py?-1:px>py?1:0; });
 }
 function renderMinhasBadge(){
@@ -3807,6 +3826,7 @@ function fbBadge(c){
   return f&&f.status==='finalizado' ? '<span class="c-fb">Feedback ✓</span>' : '<span class="c-fb r">'+(f?'Feedback em rascunho':'Sem feedback')+'</span>';
 }
 function fbSecHtml(c){
+  if(!podeGerenciar()) return '';
   const st=statusOf(c), f=c.feedback;
   if(!f&&st!=='concluido'&&st!=='execucao') return '';
   let sum='';
