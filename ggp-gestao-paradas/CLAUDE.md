@@ -90,6 +90,10 @@ Funções hoje:
 
 Qualquer Edge Function nova: sempre valide o JWT de quem chama (`admin.auth.getUser(token)`) e o perfil real (`perfis`, lido com o client de *service role*) — nunca confie em nada que o corpo da requisição diga sobre "quem está chamando".
 
+## Modelos de plano por componente (versionados)
+
+Um modelo guarda o plano de ação "padrão" de um componente (`state.modelos`, tabela `modelos`), aplicado automaticamente quando uma troca com aquele componente é criada. Salvar um modelo para um componente que já tem um **nunca sobrescreve sem guardar o anterior**: use sempre o helper `salvarModelo(comp, acoes, origem)` (perto de `modelAcao`) para gravar — ele incrementa `versao` e empilha a edição anterior em `historico[]` (até 20 entradas) dentro do próprio documento do modelo. `modelFor`/`modelsForCard`/`applyModels` (quem auto-aplica o modelo numa troca nova) só enxergam a edição atual (`m.acoes`); `historico` é só para consulta/auditoria, em `modelosHtml()` (seção "Modelos de plano por componente", tela "Plano de troca do caminhão"). Nunca volte a fazer um `modelos().filter(m=>m.comp!==comp)` seguido de `push` direto num novo evento de salvar — isso perde a edição anterior; passe sempre por `salvarModelo`.
+
 ## Índice de maturidade da parada
 
 Calculado em `maturidade(c)` (seção "Maturidade da parada" em `index.html`). 5 pilares com peso configurável — Componente reserva, Peças, Recursos, Insumos, Plano de ação. Por pilar: `% = itens "Disponível" ÷ total de itens`; pilar sem nenhum item não entra na conta (vira aviso). Índice final = média dos pilares com item, ponderada pelos pesos. Faixas: **Liberada** (índice ≥ mínimo configurado e nenhum bloqueio) · **Atenção** (abaixo do mínimo, sem bloqueio) · **Não liberada** (existe ação Crítica ou com Impacto=SIM ainda não executada — bloqueio sempre vence o índice, mesmo a 100%) · **Sem dados** (nenhum pilar com item). Pesos/mínimo configuráveis por editor/dono em "Configurar índice" (fica na própria tela da maturidade), guardados no documento `cfg-maturidade` dentro da tabela `recursos`.

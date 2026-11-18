@@ -341,6 +341,10 @@ tbody tr.nolink{cursor:default}
 .danger-mini{border-color:var(--pend);color:var(--pend)}
 .mlist{margin:6px 0 4px;padding-left:20px;font-size:13px;max-height:260px;overflow:auto}
 .mlist li{margin:2px 0}
+.mdl-hist{margin-top:6px;border-top:1px dashed var(--line);padding-top:6px;font-size:13px}
+.mdl-hist summary{font-weight:600;color:var(--muted)}
+.mdl-hv{margin:8px 0 8px 10px;padding-left:10px;border-left:2px solid var(--line)}
+.mdl-hv .count{margin:0}
 details summary{cursor:pointer;font-weight:600}
 .badge{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:var(--pend);color:#fff;font-size:12px;font-weight:700;margin-left:4px}
 .badge[hidden]{display:none}
@@ -1931,6 +1935,13 @@ const modelos = () => Array.isArray(state.modelos) ? state.modelos : (state.mode
 const modelFor = key => modelos().find(m=>m.comp===key);
 const modelsForCard = c => [...new Set(c.componentes||[])].map(modelFor).filter(Boolean);
 const modelAcao = a => ({ponto:a.ponto||'',acao:a.acao||'',resp:a.resp||'',prioridade:a.prioridade||'',impacto:a.impacto||''});
+function salvarModelo(comp,acoes,origem){
+  const atual=modelFor(comp);
+  const historico = atual ? [{acoes:atual.acoes,origem:atual.origem,atualizado:atual.atualizado,versao:atual.versao||1},...(atual.historico||[])].slice(0,20) : [];
+  const novo={id:atual?atual.id:uid(),comp,acoes:acoes.map(modelAcao),origem,atualizado:new Date().toISOString(),versao:(atual?.versao||0)+1,historico};
+  state.modelos=modelos().filter(m=>m.comp!==comp); state.modelos.push(novo);
+  return {novo,atual};
+}
 function applyModels(c,auto){
   const ms=modelsForCard(c); if(!ms.length) return 0;
   const seen=new Set(c.acoes.map(a=>normH(a.ponto)+'|'+normH(a.acao)));
@@ -1948,36 +1959,39 @@ function openModelo(mode,cid){
   mdMode=mode; mdCard=cid?findCard(cid):null;
   const prefer=mdCard?[...new Set(mdCard.componentes||[])]:[];
   const keys=[...prefer,...COMPONENTES.map(compKey).filter(k=>!prefer.includes(k))];
-  $('mdComp').innerHTML=keys.map(k=>`<option value="${esc(k)}">${esc(compLabel(k))}${modelFor(k)?' (já tem modelo)':''}</option>`).join('');
+  $('mdComp').innerHTML=keys.map(k=>`<option value="${esc(k)}">${esc(compLabel(k))}${modelFor(k)?` (edição ${modelFor(k).versao||1} salva)`:''}</option>`).join('');
   $('mdTitle').textContent = mode==='save' ? 'Salvar plano de '+mdCard.frota+' como modelo' : 'Importar modelo de planilha';
   $('mdInfo').textContent = mode==='save'
-    ? `As ${mdCard.acoes.length} ações entram no modelo sem datas, execução e observações. Ficam: ponto a discutir, ação, responsável, prioridade e impacto.`
-    : 'Escolha o componente e depois a planilha no formato do plano de ação. Datas, execução e observações não entram no modelo.';
+    ? `As ${mdCard.acoes.length} ações entram no modelo sem datas, execução e observações. Ficam: ponto a discutir, ação, responsável, prioridade e impacto. Se o componente já tiver um modelo, isto cria uma nova edição — a anterior fica guardada no histórico, nada se perde.`
+    : 'Escolha o componente e depois a planilha no formato do plano de ação. Datas, execução e observações não entram no modelo. Se o componente já tiver um modelo, isto cria uma nova edição — a anterior fica guardada no histórico.';
   $('mdOk').textContent = mode==='save' ? 'Salvar modelo' : 'Escolher planilha';
   $('mdErr').textContent=''; mdlg.showModal();
 }
 $('mdCancel').onclick=()=>mdlg.close();
 $('mdOk').onclick=()=>{
   const comp=$('mdComp').value; if(!comp) return;
-  if(modelFor(comp)&&!confirm(`Já existe modelo para ${compLabel(comp)}. Substituir?`)) return;
   if(mdMode==='save'){
-    state.modelos=modelos().filter(m=>m.comp!==comp);
-    state.modelos.push({id:uid(),comp,acoes:mdCard.acoes.map(modelAcao),origem:mdCard.frota,atualizado:new Date().toISOString()});
-    log(mdCard,'Modelo salvo',`Plano com ${mdCard.acoes.length} ações salvo como modelo de ${compLabel(comp)}`);
-    save(); mdlg.close(); refresh(); toast(`Modelo de ${compLabel(comp)} salvo.`);
+    const {novo,atual}=salvarModelo(comp,mdCard.acoes,mdCard.frota);
+    log(mdCard,'Modelo salvo',`${atual?`Edição ${novo.versao} do modelo`:'Modelo'} de ${compLabel(comp)} salv${atual?'a':'o'} (${novo.acoes.length} ações)${atual?'; edição anterior mantida no histórico':''}`);
+    save(); mdlg.close(); refresh(); toast(atual?`Nova edição do modelo de ${compLabel(comp)} salva.`:`Modelo de ${compLabel(comp)} salvo.`);
   } else {
     const x=$('xlsIn'); delete x.dataset.cid; x.dataset.model=comp; mdlg.close(); x.click();
   }
 };
 function modelosHtml(){
   const ms=[...modelos()].sort((a,b)=>compLabel(a.comp).localeCompare(compLabel(b.comp),'pt'));
+  const acoesHtml = acoes => `<ol class="mlist">${acoes.map(a=>`<li><b>${esc(a.ponto)}</b> ${esc(a.acao)}${a.resp?` <span class="count">(${esc(a.resp)})</span>`:''}</li>`).join('')}</ol>`;
   return `<div class="sec"><h3>Modelos de plano por componente</h3>
-    <p class="count">Ao criar uma troca, as ações do modelo de cada componente selecionado entram automaticamente no plano, sem datas.</p>
+    <p class="count">Ao criar uma troca, as ações do modelo de cada componente selecionado entram automaticamente no plano, sem datas. Salvar de novo para um componente que já tem modelo cria uma nova edição — a anterior fica guardada no histórico, nada se perde.</p>
     <div class="atools"><button class="btn lt" data-mimp>Importar modelo (Excel)</button></div>
-    ${ms.length?`<div class="twrap"><table><thead><tr><th>Componente</th><th class="num">Ações</th><th>Origem</th><th>Atualizado</th><th></th></tr></thead><tbody>${
-      ms.map(m=>`<tr class="nolink"><td><details><summary>${esc(compLabel(m.comp))}</summary><ol class="mlist">${m.acoes.map(a=>`<li><b>${esc(a.ponto)}</b> ${esc(a.acao)}${a.resp?` <span class="count">(${esc(a.resp)})</span>`:''}</li>`).join('')}</ol></details></td>
-        <td class="num">${m.acoes.length}</td><td class="nowrap">${esc(m.origem||'')}</td><td class="nowrap">${m.atualizado?fmtTs(m.atualizado):''}</td>
-        <td><button class="mini danger-mini" data-mdel="${esc(m.comp)}">Excluir</button></td></tr>`).join('')
+    ${ms.length?`<div class="twrap"><table><thead><tr><th>Componente</th><th class="num">Edição</th><th class="num">Ações</th><th>Origem</th><th>Atualizado</th><th></th></tr></thead><tbody>${
+      ms.map(m=>{ const hist=m.historico||[];
+        return `<tr class="nolink"><td><details><summary>${esc(compLabel(m.comp))}</summary>${acoesHtml(m.acoes)}
+          ${hist.length?`<details class="mdl-hist"><summary>Histórico (${hist.length} edição${hist.length>1?'ões':''} anterior${hist.length>1?'es':''})</summary>${
+            hist.map(h=>`<div class="mdl-hv"><p class="count">Edição ${h.versao||'–'} · ${esc(h.origem||'')} · ${h.atualizado?fmtTs(h.atualizado):''}</p>${acoesHtml(h.acoes)}</div>`).join('')
+          }</details>`:''}</details></td>
+        <td class="num">${m.versao||1}</td><td class="num">${m.acoes.length}</td><td class="nowrap">${esc(m.origem||'')}</td><td class="nowrap">${m.atualizado?fmtTs(m.atualizado):''}</td>
+        <td><button class="mini danger-mini" data-mdel="${esc(m.comp)}">Excluir</button></td></tr>`; }).join('')
     }</tbody></table></div>`:(ro()?'<p class="empty">Nenhum modelo cadastrado.</p>':'<p class="empty">Nenhum modelo ainda. Abra uma troca com o plano pronto e use “Salvar plano como modelo”, ou importe uma planilha.</p>')}
   </div>`;
 }
@@ -4056,10 +4070,9 @@ $('xlsIn').onchange=e=>{
   r.onload=()=>{ try{
       const novas=parseAcoes(new Uint8Array(r.result));
       if(!novas.length){ toast('A planilha não tem ações preenchidas.'); return; }
-      if(model){ state.modelos=modelos().filter(m=>m.comp!==model);
-        state.modelos.push({id:uid(),comp:model,acoes:novas.map(modelAcao),origem:'Planilha '+f.name,atualizado:new Date().toISOString()});
-        log(null,'Modelo importado',`${novas.length} ações para ${compLabel(model)} (planilha ${f.name})`);
-        save(); refresh(); toast(`Modelo de ${compLabel(model)} com ${novas.length} ações.`); return; }
+      if(model){ const {novo,atual}=salvarModelo(model,novas,'Planilha '+f.name);
+        log(null,'Modelo importado',`${atual?`Edição ${novo.versao}`:'Modelo'} de ${compLabel(model)}: ${novas.length} ações (planilha ${f.name})${atual?'; edição anterior mantida no histórico':''}`);
+        save(); refresh(); toast(`${atual?'Nova edição do modelo':'Modelo'} de ${compLabel(model)} com ${novas.length} ações.`); return; }
       if(c.acoes.length&&!confirm(`${c.frota} já tem ${c.acoes.length} ações. Adicionar as ${novas.length} ações importadas ao final?`)) return;
       c.acoes.push(...novas); log(c,'Ações importadas',`${novas.length} ações da planilha ${f.name}`); save(); refresh(); toast(`${novas.length} ações importadas para ${c.frota}.`);
     }catch(err){ toast(err.message||'Não foi possível ler a planilha.'); } };

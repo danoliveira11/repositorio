@@ -2,6 +2,17 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Modelos de plano por componente agora são versionados
+
+Pedido: o Editor não conseguia salvar uma nova edição do plano-modelo de um componente (ex.: "plano de motor") — o sistema só sabia **substituir** o modelo existente (um `confirm()` de "Substituir?" e, se confirmado, a edição anterior era perdida de vez). Pedido do usuário: permitir lançar uma nova edição e manter um histórico das anteriores.
+
+- Novo helper `salvarModelo(comp, acoes, origem)`: em vez de apagar e recriar o documento do modelo, incrementa `versao` e empilha a edição anterior inteira (ações, origem, data) em `historico[]` (até 20 entradas) dentro do mesmo documento. Usado tanto no botão "Salvar plano como modelo" quanto na importação de modelo por planilha (esse segundo caminho nem avisava antes de sobrescrever — agora também versiona).
+- Removido o `confirm()` de "Já existe modelo... Substituir?": não faz mais sentido pedir confirmação para algo que não é mais destrutivo.
+- Tela "Modelos de plano por componente" (em "Plano de troca do caminhão") agora mostra a coluna "Edição" e, dentro de cada componente, um bloco recolhível "Histórico (N edição(ões) anterior(es))" com as ações, origem e data de cada edição anterior.
+- `applyModels()`/`modelFor()` continuam usando só a edição atual (`m.acoes`) para auto-aplicar o modelo numa troca nova — o histórico é só para consulta, não existe (ainda) um "restaurar edição antiga".
+- Arquivos: `index.html` (seção "Modelos de plano por componente"). Nenhuma mudança de schema/Edge Function — o histórico mora dentro do mesmo jsonb que já existia.
+- Validado com o truque do `role='local'` + Playwright (ver `CLAUDE.md`): salvei duas edições seguidas do mesmo componente e confirmei que a edição 1 aparece no histórico da edição 2, com as ações certas.
+
 ## 2026-11-18 — Layout da tabela de ações, maturidade reformatada, múltiplos responsáveis e telas restritas a Editor/Dono
 
 Pedido: (1) a tabela do plano de ação obrigava a rolar pro lado para ver as últimas colunas; (2) o bloco de pilares da maturidade estava "desordenado"; (3) uma ação devia poder ter mais de um responsável; (4) Histórico, Feedback da parada, Padrão de recursos e Parque reserva deveriam ficar visíveis só para Editor e Dono (confirmado com o usuário que isso inclui o Dono, não só o Editor); (5) nenhum botão de lançar/alterar deve aparecer para quem não tem permissão naquele lugar.
