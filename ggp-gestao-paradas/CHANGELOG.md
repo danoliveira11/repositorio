@@ -2,6 +2,16 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Filtros em 4 listas: Material de Instalação (Padrão de recursos), Plano de ação, OS Material de Instalação e Backlog de aplicação
+
+Pedido: adicionar filtro nesses 4 blocos.
+
+- **Padrão de recursos**: novo campo de busca por código/descrição/orientação dentro da categoria e componente selecionados (`recF.iq`) — antes só dava para buscar por nome de componente na lista da esquerda, não por item dentro da lista. Reseta ao trocar de categoria ou componente.
+- **Plano de ação (dentro da troca)**: a tabela já tinha filtro por status e busca livre; adicionados filtro por **Responsável** (lista os responsáveis já usados naquela troca, mais "Sem responsável") e por **Prioridade**.
+- **Carteira de Backlog** (as duas listas, Material de Instalação e Backlog de aplicação): cada uma ganhou seu próprio filtro — busca por OS/descrição e um select de status do DE-PARA (OK/Atenção/Pendente/Cancelada/Não encontrada). O resumo no topo de cada lista continua contando todos os itens, não só os filtrados.
+- Arquivos: `index.html` (`renderRec`, `renderCard`/`acFilter`, `carteiraSecHtml`/`ctFilter`). Sem mudança de schema/Edge Function.
+- Validado com Playwright: cada filtro testado isoladamente contra uma lista com itens que deveriam e não deveriam aparecer, conferindo a contagem exata de linhas resultantes.
+
 ## 2026-11-18 — Nova funcionalidade: Carteira de Backlog (OS Material de Instalação + Backlog de aplicação) com DE-PARA automático
 
 Pedido: criar um novo item da parada — Carteira de Backlog, com duas carteiras (OS Material de Instalação e Backlog de aplicação/carteira de criticidade). Depois desse cadastro fixo por parada, o Editor lança a carteira geral do equipamento, e o site faz o DE-PARA automático entre as duas, para saber o status real de cada OS (ok/pendente/etc). A pedido do usuário, entra também como 6º pilar do índice de maturidade.

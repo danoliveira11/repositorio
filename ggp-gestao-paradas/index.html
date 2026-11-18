@@ -1678,7 +1678,7 @@ function renderWeek(key){
 }
 
 /* ---------- Tela do card (plano de ação) ---------- */
-const acFilter={status:'',q:''};
+const acFilter={status:'',q:'',resp:'',prio:''};
 let backHash='#/';
 function renderCard(id){
   const c=findCard(id);
@@ -1691,6 +1691,8 @@ function renderCard(id){
   const list=(c.acoes||[]).map((a,i)=>({a,i})).filter(({a})=>{
     if(acFilter.status==='__sem'&&acStatus(a)) return false;
     if(acFilter.status&&acFilter.status!=='__sem'&&acStatus(a)!==acFilter.status) return false;
+    if(acFilter.resp){ const r=respLabel(a); if(acFilter.resp==='__sem'?r:r!==acFilter.resp) return false; }
+    if(acFilter.prio&&(a.prioridade||'__sem')!==acFilter.prio) return false;
     if(acFilter.q){ const q=acFilter.q.toLowerCase(); if(!((a.resp||'')+' '+(a.acao||'')+' '+(a.ponto||'')).toLowerCase().includes(q)) return false; }
     return true; });
   let lastPonto=null;
@@ -1708,6 +1710,10 @@ function renderCard(id){
   }).join('');
   const opts=['','EXECUTADO','EXECUTADO FORA DO PRAZO','EM ANDAMENTO','PRAZO VENCIDO','__sem'].map(v=>
     `<option value="${v}" ${acFilter.status===v?'selected':''}>${v===''?'Todos os status':v==='__sem'?'Sem data prevista':v}</option>`).join('');
+  const respOpts=['',...uniq((c.acoes||[]).map(a=>respLabel(a)).filter(Boolean)),'__sem'].map(v=>
+    `<option value="${v}" ${acFilter.resp===v?'selected':''}>${v===''?'Todos os responsáveis':v==='__sem'?'Sem responsável':esc(v)}</option>`).join('');
+  const prioOpts=['','Crítica','Alta','Média','Baixa','__sem'].map(v=>
+    `<option value="${v}" ${acFilter.prio===v?'selected':''}>${v===''?'Todas as prioridades':v==='__sem'?'Sem prioridade':v}</option>`).join('');
   $('vCard').innerHTML=`
     <div class="vnav"><button class="back" data-go="${backHash}">← Voltar</button>
       ${s?`<button class="back" data-go="#/semana/${toIso(monday(s.a))}">Semana ${isoWeek(s.a)}</button>`:''}</div>
@@ -1748,6 +1754,8 @@ function renderCard(id){
         <button class="btn lt" data-msave="${c.id}" ${c.acoes.length?'':'disabled'}>Salvar plano como modelo</button>
         <span style="flex:1"></span>
         <select id="acSt" aria-label="Filtrar por status">${opts}</select>
+        <select id="acResp" aria-label="Filtrar por responsável">${respOpts}</select>
+        <select id="acPrio" aria-label="Filtrar por prioridade">${prioOpts}</select>
         <input id="acQ" type="search" placeholder="Buscar responsável ou ação" value="${esc(acFilter.q)}">
       </div>
       <div class="twrap"><table class="tbl-ac"><thead><tr><th class="num">Item</th><th>Pontos a discutir</th><th>Ações geradas</th><th>Data previsto</th><th>Data executado</th>
@@ -1759,7 +1767,11 @@ function renderCard(id){
     ${imgsHtml(c)}
     ${podeGerenciar()?`<div class="sec"><h3>Histórico</h3>${histHtml((c.hist||[]).slice(-80).reverse(),false)}</div>`:''}`;
   $('acSt').onchange=e=>{ acFilter.status=e.target.value; renderCard(id); };
+  $('acResp').onchange=e=>{ acFilter.resp=e.target.value; renderCard(id); };
+  $('acPrio').onchange=e=>{ acFilter.prio=e.target.value; renderCard(id); };
   $('acQ').oninput=e=>{ acFilter.q=e.target.value; const pos=e.target.selectionStart; renderCard(id); const q=$('acQ'); q.focus(); q.setSelectionRange(pos,pos); };
+  $('vCard').querySelectorAll('.ct-fq').forEach(el=>{ const key=el.dataset.ctf; el.oninput=e=>{ ctFilter[key]=e.target.value; const pos=e.target.selectionStart; renderCard(id); const ni=$('vCard').querySelector(`[data-ctf="${key}"]`); if(ni){ ni.focus(); ni.setSelectionRange(pos,pos); } }; });
+  $('vCard').querySelectorAll('.ct-fsel').forEach(el=>{ const key=el.dataset.ctf; el.onchange=e=>{ ctFilter[key]=e.target.value; renderCard(id); }; });
   kpiCores(); hydrateImgs(c);
 }
 /* ---------- Imagens do plano (Supabase Storage; fora dele, guardadas no próprio card) ---------- */
@@ -2938,7 +2950,7 @@ if(!SHARED&&!crcAll().length){ state.crc=JSON.parse(JSON.stringify(CRC_EXEMPLO))
    Um padrão por componente da lista do GGP, por frota e por tipo de parada (MPNS, PM, Confiabilidade); na PM, por intervalo (PM 1000 a 8000 h). Itens digitados ou importados; nada é calculado. */
 const REC_FROTAS=['794AC','793F'];
 const recAll = () => Array.isArray(state.recursos) ? state.recursos : (state.recursos=[]);
-const recF={frota:'794AC',parada:'MPNS',pm:PMS[0],comp:'',q:'',cat:'peca'};
+const recF={frota:'794AC',parada:'MPNS',pm:PMS[0],comp:'',q:'',cat:'peca',iq:''};
 const REC_CAT={peca:{l:'Material de Instalação',um:'material',pn:'Part number'},recurso:{l:'Recursos',um:'recurso',pn:'Código / PN'},insumo:{l:'Insumos',um:'insumo',pn:'Código / PN'}};
 const recCatOf = it => REC_CAT[it&&it.cat]?it.cat:'peca';
 const recComps = () => { const v=new Set(); return COMPONENTES.map(compKey).filter(k=>!v.has(k)&&v.add(k)); };
@@ -2963,7 +2975,8 @@ function renderRec(){
   const q=normH(recF.q);
   const lista=comps.filter(k=>!q||normH(compLabel(k)).includes(q));
   const comPadrao=comps.filter(k=>recItens(k,recF.frota).length).length;
-  const p=recDe(recF.comp,recF.frota), todos=(p&&p.itens)||[], itens=todos.filter(x=>recCatOf(x)===recF.cat), CT=REC_CAT[recF.cat];
+  const p=recDe(recF.comp,recF.frota), todos=(p&&p.itens)||[], todosCat=todos.filter(x=>recCatOf(x)===recF.cat), CT=REC_CAT[recF.cat];
+  const iq=normH(recF.iq), itens=todosCat.filter(x=>!iq||normH([x.pn,x.desc,x.orient].join(' ')).includes(iq));
   const outros=recAll().filter(r=>!r.cfg&&(r.itens||[]).length&&r!==p)
     .sort((a,b)=>compLabel(a.comp).localeCompare(compLabel(b.comp),'pt')||a.frota.localeCompare(b.frota));
   const rows=itens.map((it,i)=>`<tr ${ro()?'class="nolink"':`data-recit="${it.id}"`}>
@@ -2995,12 +3008,14 @@ function renderRec(){
             ${outros.length?`<label class="crc-sel rec-copy"><span>Copiar de</span><select id="recCopy"><option value="">Escolha um padrão…</option>${outros.map(r=>`<option value="${r.id}">${esc(compLabel(r.comp))} · ${esc(recTag(r))} (${r.itens.length})</option>`).join('')}</select></label>`:''}
           </div></div>
         <div class="segs rec-cats" role="tablist" aria-label="Tipo">${Object.entries(REC_CAT).map(([k,v])=>`<button class="seg${recF.cat===k?' on':''}" data-reccat="${k}" role="tab" aria-selected="${recF.cat===k}">${v.l} <span class="rec-cn">${todos.filter(x=>recCatOf(x)===k).length}</span></button>`).join('')}</div>
+        ${todosCat.length?`<div class="atools" style="margin:8px 0"><input id="recIq" class="crc-q" type="search" placeholder="Buscar em ${CT.l.toLowerCase()} (código, descrição ou orientação)" value="${esc(recF.iq)}"><span class="count">${itens.length} de ${todosCat.length}</span></div>`:''}
         ${itens.length?`<div class="twrap"><table class="rec-tb"><thead><tr><th class="num">#</th><th>Imagem</th><th>${CT.pn}</th><th class="num">Quantidade</th><th>Unidade</th><th>Descrição</th><th>Orientação</th>${ro()?'':'<th>Ordem</th>'}</tr></thead><tbody>${rows}</tbody></table></div>`
-          :`<p class="empty">${ro()?`Este componente ainda não tem ${CT.l.toLowerCase()} no padrão.`:`Use “Novo ${CT.um}” para cadastrar, ou importe uma planilha com as colunas PART NUMBER (ou CÓDIGO), QUANTIDADE, UNIDADE, DESCRIÇÃO e ORIENTAÇÃO. Nenhum campo é obrigatório.`}</p>`}
+          :`<p class="empty">${todosCat.length?'Nenhum item com esse filtro.':ro()?`Este componente ainda não tem ${CT.l.toLowerCase()} no padrão.`:`Use “Novo ${CT.um}” para cadastrar, ou importe uma planilha com as colunas PART NUMBER (ou CÓDIGO), QUANTIDADE, UNIDADE, DESCRIÇÃO e ORIENTAÇÃO. Nenhum campo é obrigatório.`}</p>`}
       </section>
     </div>`;
   if($('recPm')) $('recPm').onchange=e=>{ recF.pm=e.target.value; renderRec(); };
   $('recQ').oninput=e=>{ recF.q=e.target.value; const pos=e.target.selectionStart; renderRec(); const i=$('recQ'); i.focus(); i.setSelectionRange(pos,pos); };
+  if($('recIq')) $('recIq').oninput=e=>{ recF.iq=e.target.value; const pos=e.target.selectionStart; renderRec(); const i=$('recIq'); i.focus(); i.setSelectionRange(pos,pos); };
   if($('recCopy')) $('recCopy').onchange=e=>{ const src=recAll().find(r=>r.id===e.target.value); e.target.value=''; if(src) recCopiar(src); };
   hydrateRec($('vRec'));
 }
@@ -3324,18 +3339,33 @@ $('ctIn').onchange=e=>{
 };
 
 /* ---------- Carteira de Backlog por parada (duas listas digitadas: Material de Instalação e Backlog de aplicação) ---------- */
+const ctFilter={matQ:'',matSt:'',bkQ:'',bkSt:''};
+const ctStatusOpts = cur => `<option value="">Todos os status</option>${Object.entries(CT_BUCKET).map(([k,b])=>`<option value="${k}" ${cur===k?'selected':''}>${b.l}</option>`).join('')}`;
+function ctFiltrar(itens,frota,q,st){
+  const qq=normH(q);
+  return (itens||[]).filter(it=>{
+    if(qq&&!normH([it.os,it.desc].join(' ')).includes(qq)) return false;
+    if(st&&carteiraDePara(it.os,frota).bucket!==st) return false;
+    return true;
+  });
+}
+const ctFiltroHtml=(prefix,q,st)=>`<div class="atools" style="margin:4px 0 8px"><input class="ct-fq" data-ctf="${prefix}Q" type="search" placeholder="Buscar OS ou descrição" value="${esc(q)}"><select class="ct-fsel" data-ctf="${prefix}St">${ctStatusOpts(st)}</select></div>`;
 function carteiraSecHtml(c){
-  const matR=carteiraResumo(c.carteiraMaterial,c.frota), bkR=carteiraResumo(c.carteiraBacklog,c.frota);
-  const linhaMat=(c.carteiraMaterial||[]).map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="material" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td class="num">${it.qtd===''||it.qtd==null?'':esc(it.qtd)}</td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
-  const linhaBk=(c.carteiraBacklog||[]).map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="backlog" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
+  const matAll=c.carteiraMaterial||[], bkAll=c.carteiraBacklog||[];
+  const matR=carteiraResumo(matAll,c.frota), bkR=carteiraResumo(bkAll,c.frota);
+  const matList=ctFiltrar(matAll,c.frota,ctFilter.matQ,ctFilter.matSt), bkList=ctFiltrar(bkAll,c.frota,ctFilter.bkQ,ctFilter.bkSt);
+  const linhaMat=matList.map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="material" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td class="num">${it.qtd===''||it.qtd==null?'':esc(it.qtd)}</td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
+  const linhaBk=bkList.map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="backlog" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
   return `<div class="sec"><h3>Carteira de Backlog</h3>
     <p class="count">OS necessárias para esta parada, cruzadas automaticamente com a Carteira Geral de ${esc(c.frota)} para saber o status real de cada uma (DE-PARA).</p>
     <div class="ct-grp"><div class="ct-grph"><b>OS Material de Instalação</b><span class="count">insumos necessários</span>${ctResumoHtml(matR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpnew="material" data-cid="${c.id}">+ OS</button>`}</div>
+      ${matAll.length?ctFiltroHtml('mat',ctFilter.matQ,ctFilter.matSt):''}
       <div class="twrap"><table><thead><tr><th>OS</th><th class="num">Qtd</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
-        <tbody>${linhaMat||`<tr class="empty-row"><td colspan="4">${ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'}</td></tr>`}</tbody></table></div></div>
+        <tbody>${linhaMat||`<tr class="empty-row"><td colspan="4">${!matAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div>
     <div class="ct-grp"><div class="ct-grph"><b>Backlog de aplicação</b><span class="count">carteira de criticidade</span>${ctResumoHtml(bkR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpnew="backlog" data-cid="${c.id}">+ OS</button>`}</div>
+      ${bkAll.length?ctFiltroHtml('bk',ctFilter.bkQ,ctFilter.bkSt):''}
       <div class="twrap"><table><thead><tr><th>OS</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
-        <tbody>${linhaBk||`<tr class="empty-row"><td colspan="3">${ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'}</td></tr>`}</tbody></table></div></div>
+        <tbody>${linhaBk||`<tr class="empty-row"><td colspan="3">${!bkAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div>
   </div>`;
 }
 const ctpdlg=$('ctpdlg'); let ctpEdit=null, ctpCard=null, ctpTipo=null;
@@ -3678,7 +3708,7 @@ function route(e){
   else if(type==='card'&&arg){
     const old=e&&e.oldURL?('#'+(e.oldURL.split('#')[1]||'/')):'#/';
     if(!old.startsWith('#/card/')) backHash=old;
-    if(!view.id||view.id!==arg){ acFilter.status=''; acFilter.q=''; }
+    if(!view.id||view.id!==arg){ acFilter.status=''; acFilter.q=''; acFilter.resp=''; acFilter.prio=''; ctFilter.matQ=''; ctFilter.matSt=''; ctFilter.bkQ=''; ctFilter.bkSt=''; }
     view={type:'card',id:arg};
   } else if(type==='semana'&&arg) view={type:'week',key:toIso(monday(parse(arg)))};
   else view={type:'board'};
@@ -3762,10 +3792,10 @@ document.addEventListener('click',e=>{
   if(t.closest('[data-pqexp]')){ exportParque(); return; }
   if(t.closest('[data-crcpdf]')){ crcPdf(); return; }
   if(t.closest('[data-matcfg]')){ salvarMatCfg(); return; }
-  const rca=t.closest('[data-reccat]'); if(rca){ recF.cat=rca.dataset.reccat; renderRec(); return; }
+  const rca=t.closest('[data-reccat]'); if(rca){ recF.cat=rca.dataset.reccat; recF.iq=''; renderRec(); return; }
   const rpa=t.closest('[data-recpar]'); if(rpa){ recF.parada=rpa.dataset.recpar; renderRec(); return; }
   const rfr=t.closest('[data-recfr]'); if(rfr){ recF.frota=rfr.dataset.recfr; renderRec(); return; }
-  const rco=t.closest('[data-reccomp]'); if(rco){ recF.comp=rco.dataset.reccomp; renderRec(); if(innerWidth<820) document.querySelector('.rec-det')?.scrollIntoView({behavior:'smooth'}); return; }
+  const rco=t.closest('[data-reccomp]'); if(rco){ recF.comp=rco.dataset.reccomp; recF.iq=''; renderRec(); if(innerWidth<820) document.querySelector('.rec-det')?.scrollIntoView({behavior:'smooth'}); return; }
   if(t.closest('[data-recnew]')){ openRecIt(null); return; }
   if(t.closest('[data-recimp]')){ if(!ro()) $('recIn').click(); return; }
   if(t.closest('[data-recexp]')){ recExport(); return; }

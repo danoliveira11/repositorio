@@ -109,6 +109,8 @@ Terceiro "insumo" da parada, ao lado do Plano de ação e da Maturidade. Duas li
 
 Entra como 6º pilar da Maturidade (`backlog`, ver seção abaixo): `tot` = total de itens nas duas listas da troca, `ok` = quantos deram `ok` ou `cancelada` no DE-PARA (cancelada não bloqueia nada, por isso conta como "pronto" na pontuação, embora apareça com seu próprio rótulo na UI).
 
+Cada uma das duas listas tem seu próprio filtro (busca por OS/descrição + status do DE-PARA), estado em `ctFilter` (`matQ/matSt/bkQ/bkSt`), resetado junto com `acFilter` ao trocar de troca em `route()`. O filtro só afasta linhas da tabela — o resumo no cabeçalho de cada lista (`ctResumoHtml`) sempre conta os itens sem filtro.
+
 Vocabulário real de Status OS/Status OM é do sistema do usuário (SAP PM): Status OS é uma sequência numerada ("1. Ag. Planej." … "13. Ag. Encerramento", mais "Desvio de Status"); Status OM é um status paralelo, frequentemente em branco até perto do fechamento ("Programação", "Encerrado", "Cancelado", "Aprovação de Custeio").
 
 ## Índice de maturidade da parada
