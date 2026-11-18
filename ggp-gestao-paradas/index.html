@@ -734,6 +734,7 @@ body[data-view="crc"] #vCrc{display:block}
 .crcp-ft{position:absolute;left:30px;right:30px;bottom:16px;border-top:2px solid #F2B300;padding-top:5px;font-size:10px;color:#5E646C;text-align:right}
 /* Padrão de recursos */
 body[data-view="recursos"] #vRec{display:block}
+body[data-view="carteira"] #vCarteira{display:block}
 .rec-grid{display:grid;grid-template-columns:minmax(230px,300px) 1fr;gap:14px;margin-top:14px;align-items:start}
 @media (max-width:820px){.rec-grid{grid-template-columns:1fr}.rec-list{max-height:260px}}
 .rec-list{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px;max-height:calc(100vh - 220px);overflow:auto;position:sticky;top:calc(env(safe-area-inset-top,0px) + 70px)}
@@ -807,6 +808,13 @@ body[data-view="recursos"] #vRec{display:block}
 .mat-infob p{margin:8px 0}
 .mat-infob ul{margin:4px 0;padding-left:20px}
 .mat-infob li{margin:4px 0}
+.ct-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;color:#fff;background:var(--c);white-space:nowrap}
+.ct-resumo{display:inline-flex;flex-wrap:wrap;gap:4px 10px;font-size:12.5px;color:var(--muted)}
+.ct-resumo b{color:var(--c);font-weight:700}
+.ct-grp{margin-top:16px}
+.ct-grp:first-of-type{margin-top:0}
+.ct-grph{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-bottom:8px}
+.ct-grph b{font-family:var(--cond);font-size:17px;font-weight:700}
 .mat-cfgb input{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:6px 8px;color:var(--ink)}
 .c-mat{position:relative;margin-top:6px;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:12px;background:var(--surface-2)}
 .c-mat i{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb,var(--m) 22%,transparent)}
@@ -891,6 +899,7 @@ body[data-view="recursos"] #vRec{display:block}
   <section id="vParque" class="view"></section>
   <section id="vCrc" class="view"></section>
   <section id="vRec" class="view"></section>
+  <section id="vCarteira" class="view"></section>
   <section id="vUsers" class="view"></section>
 </main>
 
@@ -1023,6 +1032,31 @@ body[data-view="recursos"] #vRec{display:block}
 </dialog>
 <datalist id="crc_gestao_l"></datalist><datalist id="crc_comp_l"></datalist><datalist id="crc_status_l"></datalist><datalist id="crc_modelo_l"></datalist>
 <input type="file" id="crcIn" accept=".xlsx,.xlsm,.xls" hidden>
+<dialog id="ctgdlg">
+  <div class="m-head" id="ctgTitle">OS da carteira geral</div>
+  <div class="m-body">
+    <label class="f">Frota<select id="ctg_frota"></select></label>
+    <label class="f">Ordem de serviço<input id="ctg_os" autocomplete="off"></label>
+    <label class="f">Status OS<input id="ctg_stos" list="ctg_stos_l" autocomplete="off"></label>
+    <label class="f">Status OM<input id="ctg_stom" list="ctg_stom_l" autocomplete="off"></label>
+    <label class="f full">Descrição<input id="ctg_desc" autocomplete="off"></label>
+    <p class="err" id="ctgErr"></p>
+  </div>
+  <div class="m-foot"><button class="btn danger" id="ctgDel">Excluir OS</button><span class="sp"></span><button class="btn ghost" id="ctgCancel">Cancelar</button><button class="btn primary" id="ctgSave">Salvar</button></div>
+</dialog>
+<datalist id="ctg_stos_l"></datalist><datalist id="ctg_stom_l"></datalist>
+<input type="file" id="ctIn" accept=".xlsx,.xlsm,.xls" hidden>
+<dialog id="ctpdlg">
+  <div class="m-head" id="ctpTitle">OS da carteira</div>
+  <div class="m-body">
+    <label class="f">Ordem de serviço<input id="ctp_os" autocomplete="off"></label>
+    <label class="f" id="ctp_qtd_w">Quantidade<input id="ctp_qtd" inputmode="decimal" autocomplete="off"></label>
+    <label class="f full">Descrição<input id="ctp_desc" autocomplete="off"></label>
+    <p class="count" id="ctpInfo"></p>
+    <p class="err" id="ctpErr"></p>
+  </div>
+  <div class="m-foot"><button class="btn danger" id="ctpDel">Excluir</button><span class="sp"></span><button class="btn ghost" id="ctpCancel">Cancelar</button><button class="btn primary" id="ctpSave">Salvar</button></div>
+</dialog>
 <dialog id="pqdlg">
   <div class="m-head" id="pqTitle">Item do parque</div>
   <div class="m-body">
@@ -1175,7 +1209,7 @@ function planOf(c){
 function defaultState(){
   return {
     start: toIso(addDays(monday(new Date()),-14)),
-    weeks: 5, updated: null, hist: [], modelos: [], parque: [], crc: [], recursos: [],
+    weeks: 5, updated: null, hist: [], modelos: [], parque: [], crc: [], recursos: [], carteiraGeral: [],
     cards: [
       {id:uid(),frota:'CA128',inicio:'2026-10-10T00:00',termino:'',manual:'concluido',parada:'Confiabilidade',pm:'',backlogs:21,tempo:null,componentes:[],
        componente:'Sub. Cil. Dir. LD e LE; Sub. King Pin LD e LE',atencao:'Não estão inclusos os BLs do Cil. Dir. LD e LE e King Pin LD e LE',acoes:[]},
@@ -1219,8 +1253,8 @@ const podeReport = () => role==='editor' || role==='dono' || role==='local';   /
 const podeGerenciar = () => role==='editor' || role==='dono' || role==='local';   // Histórico, Feedback da parada, Padrão de recursos, Parque reserva: só Editor e Dono (Visualizador não vê, nem o responsável de uma ação)
 function prefsLoad(){ try{ return JSON.parse(localStorage.getItem(PREFS)||'{}')||{}; }catch(e){ return {}; } }
 function prefsSave(){ try{ localStorage.setItem(PREFS,JSON.stringify({start:state.start,weeks:state.weeks,gzoom:typeof gzoom==='string'?gzoom:undefined,planMes:typeof planMes==='string'?planMes:''})); }catch(e){} }
-let state = SHARED ? Object.assign(defaultState(),{cards:[],modelos:[],eventos:[],parque:[],crc:[],recursos:[]},prefsLoad()) : load();
-const synced={cards:new Map(),modelos:new Map(),parque:new Map(),crc:new Map(),recursos:new Map()}; const evQueue=[]; let eventos=[];
+let state = SHARED ? Object.assign(defaultState(),{cards:[],modelos:[],eventos:[],parque:[],crc:[],recursos:[],carteiraGeral:[]},prefsLoad()) : load();
+const synced={cards:new Map(),modelos:new Map(),parque:new Map(),crc:new Map(),recursos:new Map(),carteiraGeral:new Map()}; const evQueue=[]; let eventos=[];
 let flushing=false, flushAgain=false; const pending={};
 function save(){
   state.updated = new Date().toISOString(); prefsSave();
@@ -1253,12 +1287,16 @@ async function flush(){
       for(const r of recAll()){ if(!r.id) r.id=uid(); rids.add(r.id); const j=JSON.stringify(r);
         if(synced.recursos.get(r.id)!==j){ synced.recursos.set(r.id,j); await DB.collection('recursos').doc(r.id).set(JSON.parse(j)); } }
       for(const id of [...synced.recursos.keys()]) if(!rids.has(id)){ synced.recursos.delete(id); await DB.collection('recursos').doc(id).delete(); }
+      const kids=new Set();
+      for(const k of carteiraGeralAll()){ if(!k.id) k.id=uid(); kids.add(k.id); const j=JSON.stringify(k);
+        if(synced.carteiraGeral.get(k.id)!==j){ synced.carteiraGeral.set(k.id,j); await DB.collection('carteira_geral').doc(k.id).set(JSON.parse(j)); } }
+      for(const id of [...synced.carteiraGeral.keys()]) if(!kids.has(id)){ synced.carteiraGeral.delete(id); await DB.collection('carteira_geral').doc(id).delete(); }
       while(evQueue.length){ const e=evQueue.shift(); await DB.collection('eventos').doc(e.id).set(e); }
     }while(flushAgain);
   }catch(err){
     if(err&&err.code==='invalid_argument'){ role='viewer'; applyRole(); toast('Seu acesso é de visualização: as alterações não foram salvas.'); }
     else if(err&&err.code==='quota_exceeded'){ toast('O banco do painel atingiu o limite de armazenamento.'); }
-    else { synced.cards.clear(); synced.modelos.clear(); synced.parque.clear(); synced.crc.clear(); synced.recursos.clear(); toast('Não foi possível salvar agora. A próxima alteração tenta de novo.'); }
+    else { synced.cards.clear(); synced.modelos.clear(); synced.parque.clear(); synced.crc.clear(); synced.recursos.clear(); synced.carteiraGeral.clear(); toast('Não foi possível salvar agora. A próxima alteração tenta de novo.'); }
   }finally{ flushing=false; applyPending(); }
 }
 const dialogOpen = () => ['dlg','adlg','mdlg','pqdlg','anxdlg','crcdlg','recdlg'].some(id=>$(id)&&$(id).open) || (view.type==='fb'&&$('vFb').contains(document.activeElement)&&document.activeElement.matches('input,textarea,select'));
@@ -1281,6 +1319,9 @@ function applyPending(){
   if(pending.recursos){ const snap=pending.recursos; pending.recursos=null;
     state.recursos=snap.docs.map(d=>{ const o=JSON.parse(JSON.stringify(d.data())); o.id=d.id; return o; });
     synced.recursos=new Map(state.recursos.map(o=>[o.id,JSON.stringify(o)])); refresh(); }
+  if(pending.carteiraGeral){ const snap=pending.carteiraGeral; pending.carteiraGeral=null;
+    state.carteiraGeral=snap.docs.map(d=>{ const o=JSON.parse(JSON.stringify(d.data())); o.id=d.id; return o; });
+    synced.carteiraGeral=new Map(state.carteiraGeral.map(o=>[o.id,JSON.stringify(o)])); refresh(); }
 }
 function applyRole(){
   document.body.classList.toggle('ro',ro());
@@ -1350,6 +1391,7 @@ async function startSession(u){
   DB.collection('parque').onSnapshot(snap=>{ pending.parque=snap; applyPending(); }, ()=>{});
   DB.collection('crc').onSnapshot(snap=>{ pending.crc=snap; applyPending(); }, ()=>{});
   DB.collection('recursos').onSnapshot(snap=>{ pending.recursos=snap; applyPending(); }, ()=>{});
+  DB.collection('carteira_geral').onSnapshot(snap=>{ pending.carteiraGeral=snap; applyPending(); }, ()=>{});
   DB.collection('eventos').orderBy('ts','desc').limit(200).onSnapshot(snap=>{ eventos=snap.docs.map(d=>d.data()); if(view.type==='ind') refresh(); }, ()=>{});
   applyRole();
 }
@@ -1685,6 +1727,7 @@ function renderCard(id){
       </div>
     </div>
     ${matHtml(c)}
+    ${carteiraSecHtml(c)}
     <div class="sec"><h3>Plano de ação</h3>
       <div class="kpis">
         <div class="kpi"><span>Ações</span><b>${p.total}</b></div>
@@ -1890,13 +1933,13 @@ function renderTrocas(){
 }
 function renderTabs(){
   const t=[['plan','Planejamento',lastPlan],['acoes','Plano de ação','#/acoes'],['week','Gantt semanal','#/semana'],['card','Plano de troca do caminhão','#/card'],['ind','Indicadores','#/indicadores'],
-    ...(podeGerenciar()?[['parque','Parque reserva','#/parque'],['recursos','Padrão de recursos','#/recursos']]:[]),
+    ...(podeGerenciar()?[['parque','Parque reserva','#/parque'],['recursos','Padrão de recursos','#/recursos'],['carteira','Carteira Geral','#/carteira']]:[]),
     ...(podeReport()?[['report','Report','#/report']]:[]),...(role==='dono'?[['users','Usuários','#/usuarios']]:[])];
   const cur=(view.type==='trocas'||view.type==='fb')?'card':view.type==='crc'?'parque':(view.type==='board'||view.type==='gantt')?'plan':view.type;
   $('planbar').innerHTML=`<span class="pb-t">Planejamento</span><div class="segs" role="group" aria-label="Visualização do planejamento">
     <button class="seg${view.type==='board'?' on':''}" data-go="#/" ${view.type==='board'?'aria-current="page"':''}>Kanban</button>
     <button class="seg${view.type==='gantt'?' on':''}" data-go="#/cronograma" ${view.type==='gantt'?'aria-current="page"':''}>Cronograma</button></div>`;
-  const ICO={plan:'M3 5h18M3 12h18M3 19h18',acoes:'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',week:'M4 6h10M4 12h14M4 18h7',card:'M3 7h13l5 5v5H3zM7 17a2 2 0 1 0 0 .01M17 17a2 2 0 1 0 0 .01',ind:'M4 20V10M10 20V4M16 20v-7M22 20H2',parque:'M3 9l9-5 9 5v10H3zM9 19v-6h6v6',recursos:'M4 7l8-4 8 4-8 4zM4 7v10l8 4 8-4V7M12 11v10',report:'M6 3h9l4 4v14H6zM14 3v5h5',users:'M16 19c0-2.8-1.8-4-4-4s-4 1.2-4 4M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6'};
+  const ICO={plan:'M3 5h18M3 12h18M3 19h18',acoes:'M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01',week:'M4 6h10M4 12h14M4 18h7',card:'M3 7h13l5 5v5H3zM7 17a2 2 0 1 0 0 .01M17 17a2 2 0 1 0 0 .01',ind:'M4 20V10M10 20V4M16 20v-7M22 20H2',parque:'M3 9l9-5 9 5v10H3zM9 19v-6h6v6',recursos:'M4 7l8-4 8 4-8 4zM4 7v10l8 4 8-4V7M12 11v10',report:'M6 3h9l4 4v14H6zM14 3v5h5',users:'M16 19c0-2.8-1.8-4-4-4s-4 1.2-4 4M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6',carteira:'M4 4h16v4H4zM4 11h16v9H4zM8 15h8'};
   $('tabs').innerHTML=t.map(([k,l,h])=>`<button class="tab ${cur===k?'on':''}" data-go="${h}" ${cur===k?'aria-current="page"':''}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICO[k]||''}"/></svg>${l}</button>`).join('');
   const atual=t.find(([k])=>k===cur); $('curPage').textContent=atual?atual[1]:'';
   $('drFoot').textContent = DB ? ((meNome?meNome+' · ':'')+(ROLE_LABEL[role]||'')) : 'Sem login (modo local)';
@@ -3072,10 +3115,18 @@ $('recIn').onchange=e=>{
         return {id:uid(),cat:recF.cat,pn:tx(l,C.pn),qtd:q===''?'':(isFinite(n)?n:q),un:tx(l,C.un),desc:tx(l,C.desc),orient:tx(l,C.orient)}; }).filter(x=>x.pn||x.desc||x.orient);
       if(!itens.length){ toast('A planilha não tem itens preenchidos.'); return; }
       const ex=recDe(recF.comp,recF.frota), cl=REC_CAT[recF.cat].l.toLowerCase(), atuais=ex?ex.itens.filter(x=>recCatOf(x)===recF.cat):[];
-      if(atuais.length&&!confirm(`Substituir ${atuais.length} ${cl} atuais de ${compLabel(ex.comp)} · ${recTag(ex)} pelos ${itens.length} da planilha? As imagens desses itens serão removidas.`)) return;
-      const p=recPadrao(true); p.itens=[...p.itens.filter(x=>recCatOf(x)!==recF.cat),...itens]; atuais.forEach(x=>recApagaImg(x.img,null)); recTocou(p);
-      log(null,'Padrão de recursos',`${compLabel(p.comp)} · ${recTag(p)}: ${itens.length} ${cl} importados da planilha ${f.name}`);
-      save(); renderRec(); toast(`${itens.length} itens importados. Adicione as imagens pelo item.`);
+      let modo='novo';
+      if(atuais.length){
+        if(confirm(`${compLabel(ex.comp)} · ${recTag(ex)} já tem ${atuais.length} ${cl} cadastrados.\n\nOK = ADICIONAR os ${itens.length} itens da planilha aos já existentes.\nCancelar = outras opções.`)) modo='adicionar';
+        else if(confirm(`Substituir os ${atuais.length} ${cl} existentes pelos ${itens.length} da planilha? As imagens desses itens serão removidas.\n\n(Cancelar para não importar nada.)`)) modo='substituir';
+        else return;
+      }
+      const p=recPadrao(true);
+      if(modo==='substituir'){ p.itens=[...p.itens.filter(x=>recCatOf(x)!==recF.cat),...itens]; atuais.forEach(x=>recApagaImg(x.img,null)); }
+      else p.itens=[...p.itens,...itens];
+      recTocou(p);
+      log(null,'Padrão de recursos',`${compLabel(p.comp)} · ${recTag(p)}: ${itens.length} ${cl} ${modo==='adicionar'?'adicionados':'importados'} da planilha ${f.name}`);
+      save(); renderRec(); toast(`${itens.length} itens ${modo==='adicionar'?'adicionados':'importados'}. Adicione as imagens pelo item.`);
     }catch(err){ toast(err.message||'Não foi possível ler a planilha.'); } };
   r.readAsArrayBuffer(f);
 };
@@ -3120,14 +3171,217 @@ async function recPdf(){
   finally{ host.remove(); }
 }
 
+/* ---------- Carteira de Backlog (OS Material de Instalação + Backlog de aplicação por parada) ----------
+   Carteira geral: lista de OS por equipamento (frota exata, ex. CA115), lançada/importada pelo Editor/Dono —
+   tabela carteira_geral, igual padrão das outras coleções (id/data genérico), com um doc especial cfg:true
+   para a configuração de classificação de status.
+   Por parada: duas listas digitadas à mão dentro do próprio card — c.carteiraMaterial (OS Material de
+   Instalação, com quantidade) e c.carteiraBacklog (Backlog de aplicação, da carteira de criticidade).
+   DE-PARA: cada item das duas listas é cruzado pelo número da OS com a carteira geral da MESMA frota da
+   troca, e classificado em OK / Atenção / Pendente / Cancelada / Não encontrada. Regra fixa: Status OM
+   contendo "Encerrado" = OK, contendo "Cancelado" = Cancelada; senão, usa a classificação configurada por
+   Status OS (ou o padrão: Discrepância/Desvio/Reprogramação = Atenção, resto = Pendente).
+   Entra como 6º pilar do índice de maturidade (ver seção "Maturidade da parada", logo abaixo). ---------- */
+const carteiraGeralAll = () => Array.isArray(state.carteiraGeral) ? state.carteiraGeral : (state.carteiraGeral=[]);
+const CT_BUCKET={ok:{l:'OK',c:'#2E9E4F'},atencao:{l:'Atenção',c:'#E8891C'},pendente:{l:'Pendente',c:'#D3392A'},cancelada:{l:'Cancelada',c:'#7A8089'},nao_encontrada:{l:'Não encontrada',c:'#9AA0A8'}};
+const carteiraCfgDoc = () => carteiraGeralAll().find(r=>r.cfg);
+function carteiraClassificarPadrao(statusOS){
+  return /DISCREP|DESVIO|REPROG/.test(normH(statusOS)) ? 'atencao' : 'pendente';
+}
+function carteiraClassificar(statusOS,statusOM){
+  const om=normH(statusOM);
+  if(/ENCERRAD/.test(om)) return 'ok';
+  if(/CANCELAD/.test(om)) return 'cancelada';
+  const cfg=carteiraCfgDoc(), mapa=(cfg&&cfg.map)||{}, k=normH(statusOS);
+  return mapa[k]||carteiraClassificarPadrao(statusOS);
+}
+function carteiraOSsVistos(){   // status OS distintos já vistos na carteira geral, para a tela de configuração
+  const m=new Map();
+  carteiraGeralAll().filter(x=>!x.cfg).forEach(x=>{ const k=normH(x.statusOS); if(k&&!m.has(k)) m.set(k,String(x.statusOS||'').trim()); });
+  return [...m.entries()].sort((a,b)=>a[1].localeCompare(b[1],'pt'));
+}
+function carteiraDePara(osNum,frota){
+  const num=normH(osNum);
+  if(!num) return {bucket:'',statusOS:'',statusOM:''};
+  const achado=carteiraGeralAll().find(x=>!x.cfg&&x.frota===frota&&normH(x.os)===num);
+  if(!achado) return {bucket:'nao_encontrada',statusOS:'',statusOM:''};
+  return {bucket:carteiraClassificar(achado.statusOS,achado.statusOM),statusOS:achado.statusOS||'',statusOM:achado.statusOM||''};
+}
+function carteiraBadge(dp){
+  if(!dp.bucket) return '<span class="count">sem OS</span>';
+  const b=CT_BUCKET[dp.bucket], det=[dp.statusOS,dp.statusOM].filter(Boolean).join(' · ');
+  return `<span class="ct-badge" style="--c:${b.c}" title="${esc(det)}">${b.l}</span>`;
+}
+function carteiraResumo(itens,frota){
+  const r={tot:(itens||[]).length,ok:0,atencao:0,pendente:0,cancelada:0,nao_encontrada:0};
+  (itens||[]).forEach(it=>{ const dp=carteiraDePara(it.os,frota); if(dp.bucket) r[dp.bucket]++; });
+  return r;
+}
+const ctResumoHtml = r => !r.tot ? '<span class="count">Nenhuma OS lançada.</span>' : `<span class="ct-resumo">${
+  Object.keys(CT_BUCKET).filter(k=>r[k]).map(k=>`<b style="--c:${CT_BUCKET[k].c}">${r[k]} ${CT_BUCKET[k].l.toLowerCase()}</b>`).join('')}</span>`;
+const FROTA_OPTS = () => `<optgroup label="793F">${FROTAS_793.map(f=>`<option value="${f}">${f}</option>`).join('')}</optgroup><optgroup label="794AC">${FROTAS_794.map(f=>`<option value="${f}">${f}</option>`).join('')}</optgroup>`;
+
+/* ---------- Tela "Carteira Geral" (admin, Editor/Dono): importar/lançar a carteira geral por equipamento ---------- */
+const ctF={frota:FROTAS_794[0]};
+function renderCarteira(){
+  if(!podeGerenciar()){ $('vCarteira').innerHTML='<p class="empty">Somente Editor e Dono acessam a Carteira Geral.</p>'; return; }
+  const all=carteiraGeralAll().filter(x=>!x.cfg);
+  const itens=all.filter(x=>x.frota===ctF.frota).sort((a,b)=>String(a.os||'').localeCompare(String(b.os||''),'pt'));
+  const rows=itens.map(x=>`<tr data-ctg="${x.id}"><td class="nowrap"><b>${esc(x.os)}</b></td><td>${esc(x.statusOS||'')}</td><td>${esc(x.statusOM||'')}</td><td>${esc(x.desc||'')}</td></tr>`).join('');
+  const osList=carteiraOSsVistos(), cfg=carteiraCfgDoc(), mapa=(cfg&&cfg.map)||{};
+  $('vCarteira').innerHTML=`
+    <div class="vhead"><h2>Carteira Geral<small>OS de cada equipamento, para o DE-PARA automático da Carteira de Backlog das paradas</small></h2>
+      <div class="meta"><b>${all.length}</b> OS cadastradas ao todo</div></div>
+    <div class="panel">
+      <div class="atools">
+        <select id="ctgFrotaSel" aria-label="Frota"></select>
+        <button class="btn primary" data-ctgnew>Nova OS</button>
+        <button class="btn lt" data-ctgimp>Importar planilha (Excel)</button>
+        <span style="flex:1"></span>
+        <span class="count">${itens.length} OS de ${esc(ctF.frota)}</span>
+      </div>
+      <div class="twrap"><table><thead><tr><th>OS</th><th>Status OS</th><th>Status OM</th><th>Descrição</th></tr></thead>
+        <tbody>${rows||`<tr class="empty-row"><td colspan="4">Nenhuma OS cadastrada para ${esc(ctF.frota)} ainda.</td></tr>`}</tbody></table></div>
+    </div>
+    <div class="sec"><details class="mat-det"><summary>Configurar classificação dos status (${osList.length} status de OS vistos)</summary>
+      <div class="mat-infob">
+        <p>Define como cada <b>Status OS</b> vira OK / Atenção / Pendente / Cancelada no DE-PARA das paradas. Regra fixa, que não depende daqui: se o <b>Status OM</b> tiver "Encerrado" conta sempre como <b>OK</b>; se tiver "Cancelado", conta sempre como <b>Cancelada</b> — só o que sobra passa pela tabela abaixo.</p>
+        ${osList.length?`<div class="twrap"><table><thead><tr><th>Status OS</th><th>Classificação</th></tr></thead><tbody>${
+          osList.map(([k,label])=>`<tr class="nolink"><td>${esc(label)}</td><td><select class="ct-cfgsel" data-stos="${esc(k)}">${Object.entries(CT_BUCKET).filter(([bk])=>bk!=='nao_encontrada').map(([bk,b])=>`<option value="${bk}" ${(mapa[k]||carteiraClassificarPadrao(label))===bk?'selected':''}>${b.l}</option>`).join('')}</select></td></tr>`).join('')
+        }</tbody></table></div><div class="atools" style="margin-top:10px"><button class="btn primary" data-ctgcfg>Salvar classificação</button></div>`
+          :'<p class="empty">Nenhuma OS importada ainda — a lista de status aparece depois do primeiro lançamento.</p>'}
+      </div></details></div>`;
+  $('ctgFrotaSel').innerHTML=FROTA_OPTS(); $('ctgFrotaSel').value=ctF.frota;
+  $('ctgFrotaSel').onchange=e=>{ ctF.frota=e.target.value; renderCarteira(); };
+  const btnCfg=$('vCarteira').querySelector('[data-ctgcfg]');
+  if(btnCfg) btnCfg.onclick=()=>{
+    const novaMapa={}; $('vCarteira').querySelectorAll('.ct-cfgsel').forEach(s=>{ novaMapa[s.dataset.stos]=s.value; });
+    let d=carteiraCfgDoc(); if(!d){ d={id:'cfg-carteira-status',cfg:true}; carteiraGeralAll().push(d); }
+    d.map=novaMapa; d.atualizado=new Date().toISOString();
+    log(null,'Carteira Geral','Configuração de classificação de status atualizada');
+    save(); refresh(); toast('Classificação salva.');
+  };
+}
+const ctgdlg=$('ctgdlg'); let ctgEdit=null;
+function openCtg(id){
+  if(!podeGerenciar()) return;
+  ctgEdit=id?carteiraGeralAll().find(x=>x.id===id):null;
+  $('ctgTitle').textContent=ctgEdit?'Editar OS · '+ctgEdit.frota:'Nova OS · '+ctF.frota;
+  $('ctg_frota').innerHTML=FROTA_OPTS(); $('ctg_frota').value=ctgEdit?ctgEdit.frota:ctF.frota;
+  $('ctg_os').value=ctgEdit?ctgEdit.os||'':''; $('ctg_stos').value=ctgEdit?ctgEdit.statusOS||'':'';
+  $('ctg_stom').value=ctgEdit?ctgEdit.statusOM||'':''; $('ctg_desc').value=ctgEdit?ctgEdit.desc||'':'';
+  $('ctg_stos_l').innerHTML=carteiraOSsVistos().map(([,l])=>`<option value="${esc(l)}">`).join('');
+  $('ctg_stom_l').innerHTML=[...new Set(carteiraGeralAll().filter(x=>!x.cfg&&x.statusOM).map(x=>x.statusOM))].map(v=>`<option value="${esc(v)}">`).join('');
+  $('ctgDel').style.visibility=ctgEdit?'visible':'hidden'; $('ctgErr').textContent='';
+  ctgdlg.showModal(); $('ctg_os').focus();
+}
+$('ctgCancel').onclick=()=>ctgdlg.close();
+$('ctgSave').onclick=()=>{
+  const frota=$('ctg_frota').value, os=$('ctg_os').value.trim(), statusOS=$('ctg_stos').value.trim(), statusOM=$('ctg_stom').value.trim(), desc=$('ctg_desc').value.trim();
+  if(!os){ $('ctgErr').textContent='Informe o número da OS.'; return; }
+  const it=ctgEdit||{id:uid()};
+  Object.assign(it,{frota,os,statusOS,statusOM,desc,atualizado:new Date().toISOString()});
+  if(!ctgEdit) carteiraGeralAll().push(it);
+  log(null,'Carteira Geral',`${frota} · OS ${os}: ${ctgEdit?'alterada':'incluída'}`);
+  save(); ctgdlg.close(); refresh(); toast('OS salva.');
+};
+$('ctgDel').onclick=()=>{
+  if(!ctgEdit||!confirm('Excluir esta OS da carteira geral?')) return;
+  state.carteiraGeral=carteiraGeralAll().filter(x=>x!==ctgEdit);
+  log(null,'Carteira Geral',`${ctgEdit.frota} · OS ${ctgEdit.os}: excluída`);
+  save(); ctgdlg.close(); refresh();
+};
+$('ctIn').onchange=e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f||ro()) return;
+  if(typeof XLSX==='undefined'){ toast('Não foi possível carregar o leitor de Excel.'); return; }
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const wb=XLSX.read(new Uint8Array(r.result),{type:'array'}); let rows=null, hi=-1;
+      for(const n of wb.SheetNames){ const x=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:null});
+        const i=x.findIndex(l=>l.some(v=>['OS','ORDEM DE SERVICO','STATUS OS'].includes(normH(v)))); if(i>=0){ rows=x; hi=i; break; } }
+      if(!rows) throw new Error('Não encontrei as colunas OS ou STATUS OS na planilha.');
+      const H=rows[hi].map(normH), at=(...n)=>H.findIndex(h=>n.includes(h));
+      const C={frota:at('FROTA','EQUIPAMENTO','CA'),os:at('OS','ORDEM DE SERVICO','ORDEM','NUMERO DA OS','NUMERO OS','N OS','Nº OS'),
+        stos:at('STATUS OS','STATUS DA OS'),stom:at('STATUS OM','STATUS DA OM'),desc:at('DESCRICAO','DESCRICAO DA OS','TEXTO BREVE','DESCR')};
+      if(C.os<0) throw new Error('Não encontrei a coluna da OS na planilha.');
+      const tx=(l,i)=>i<0||l[i]===null||l[i]===undefined?'':String(l[i]).trim();
+      const itens=rows.slice(hi+1).map(l=>({id:uid(),frota:C.frota>=0?(tx(l,C.frota)||ctF.frota):ctF.frota,os:tx(l,C.os),statusOS:tx(l,C.stos),statusOM:tx(l,C.stom),desc:tx(l,C.desc),atualizado:new Date().toISOString()})).filter(x=>x.os);
+      if(!itens.length){ toast('A planilha não tem OS preenchidas.'); return; }
+      const frotas=[...new Set(itens.map(x=>x.frota))];
+      const atuaisTot=carteiraGeralAll().filter(x=>!x.cfg&&frotas.includes(x.frota)).length;
+      let modo='novo';
+      if(atuaisTot){
+        if(confirm(`${frotas.join(', ')} já ${frotas.length>1?'têm':'tem'} ${atuaisTot} OS cadastradas.\n\nOK = ADICIONAR as ${itens.length} OS da planilha às já existentes.\nCancelar = outras opções.`)) modo='adicionar';
+        else if(confirm(`Substituir as ${atuaisTot} OS existentes de ${frotas.join(', ')} pelas ${itens.length} da planilha?\n\n(Cancelar para não importar nada.)`)) modo='substituir';
+        else return;
+      }
+      if(modo==='substituir') state.carteiraGeral=carteiraGeralAll().filter(x=>x.cfg||!frotas.includes(x.frota));
+      state.carteiraGeral.push(...itens);
+      log(null,'Carteira Geral',`${frotas.join(', ')}: ${itens.length} OS ${modo==='adicionar'?'adicionadas':'importadas'} da planilha ${f.name}`);
+      save(); refresh(); toast(`${itens.length} OS ${modo==='adicionar'?'adicionadas':'importadas'}.`);
+    }catch(err){ toast(err.message||'Não foi possível ler a planilha.'); } };
+  r.readAsArrayBuffer(f);
+};
+
+/* ---------- Carteira de Backlog por parada (duas listas digitadas: Material de Instalação e Backlog de aplicação) ---------- */
+function carteiraSecHtml(c){
+  const matR=carteiraResumo(c.carteiraMaterial,c.frota), bkR=carteiraResumo(c.carteiraBacklog,c.frota);
+  const linhaMat=(c.carteiraMaterial||[]).map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="material" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td class="num">${it.qtd===''||it.qtd==null?'':esc(it.qtd)}</td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
+  const linhaBk=(c.carteiraBacklog||[]).map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="backlog" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
+  return `<div class="sec"><h3>Carteira de Backlog</h3>
+    <p class="count">OS necessárias para esta parada, cruzadas automaticamente com a Carteira Geral de ${esc(c.frota)} para saber o status real de cada uma (DE-PARA).</p>
+    <div class="ct-grp"><div class="ct-grph"><b>OS Material de Instalação</b><span class="count">insumos necessários</span>${ctResumoHtml(matR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpnew="material" data-cid="${c.id}">+ OS</button>`}</div>
+      <div class="twrap"><table><thead><tr><th>OS</th><th class="num">Qtd</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
+        <tbody>${linhaMat||`<tr class="empty-row"><td colspan="4">${ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'}</td></tr>`}</tbody></table></div></div>
+    <div class="ct-grp"><div class="ct-grph"><b>Backlog de aplicação</b><span class="count">carteira de criticidade</span>${ctResumoHtml(bkR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpnew="backlog" data-cid="${c.id}">+ OS</button>`}</div>
+      <div class="twrap"><table><thead><tr><th>OS</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
+        <tbody>${linhaBk||`<tr class="empty-row"><td colspan="3">${ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'}</td></tr>`}</tbody></table></div></div>
+  </div>`;
+}
+const ctpdlg=$('ctpdlg'); let ctpEdit=null, ctpCard=null, ctpTipo=null;
+function openCtp(tipo,cid,id){
+  if(ro()) return;
+  ctpCard=findCard(cid); if(!ctpCard) return;
+  ctpTipo=tipo;
+  const arr=tipo==='material'?(ctpCard.carteiraMaterial||(ctpCard.carteiraMaterial=[])):(ctpCard.carteiraBacklog||(ctpCard.carteiraBacklog=[]));
+  ctpEdit=id?arr.find(x=>x.id===id):null;
+  $('ctpTitle').textContent=(tipo==='material'?'OS · Material de Instalação':'OS · Backlog de aplicação')+' · '+ctpCard.frota;
+  $('ctp_os').value=ctpEdit?ctpEdit.os||'':''; $('ctp_desc').value=ctpEdit?ctpEdit.desc||'':'';
+  $('ctp_qtd').value=ctpEdit&&ctpEdit.qtd!==undefined&&ctpEdit.qtd!==null?ctpEdit.qtd:'';
+  $('ctp_qtd_w').hidden=tipo!=='material';
+  $('ctpDel').style.visibility=ctpEdit?'visible':'hidden'; $('ctpErr').textContent=''; $('ctpInfo').textContent='';
+  if(ctpEdit&&ctpEdit.os){ const dp=carteiraDePara(ctpEdit.os,ctpCard.frota);
+    $('ctpInfo').textContent=dp.bucket?`DE-PARA atual: ${CT_BUCKET[dp.bucket].l}${dp.statusOS?' · Status OS: '+dp.statusOS:''}${dp.statusOM?' · Status OM: '+dp.statusOM:''}`:''; }
+  ctpdlg.showModal(); $('ctp_os').focus();
+}
+$('ctpCancel').onclick=()=>ctpdlg.close();
+$('ctpSave').onclick=()=>{
+  const os=$('ctp_os').value.trim(), desc=$('ctp_desc').value.trim(), qs=$('ctp_qtd').value.trim();
+  if(!ctpEdit&&!os&&!desc){ ctpdlg.close(); return; }
+  if(!os){ $('ctpErr').textContent='Informe o número da OS.'; return; }
+  const qn=qs===''?'':Number(qs.replace(',','.')); const qtd=qs===''?'':(isFinite(qn)?qn:qs);
+  const arr=ctpTipo==='material'?(ctpCard.carteiraMaterial||(ctpCard.carteiraMaterial=[])):(ctpCard.carteiraBacklog||(ctpCard.carteiraBacklog=[]));
+  if(ctpEdit) Object.assign(ctpEdit,{os,desc,qtd:ctpTipo==='material'?qtd:''});
+  else arr.push({id:uid(),os,desc,qtd:ctpTipo==='material'?qtd:''});
+  log(ctpCard,'Carteira de Backlog',`${ctpTipo==='material'?'Material de Instalação':'Backlog de aplicação'}: OS ${os} ${ctpEdit?'alterada':'incluída'}`);
+  save(); ctpdlg.close(); refresh();
+};
+$('ctpDel').onclick=()=>{
+  if(!ctpEdit||!confirm('Excluir esta OS da carteira?')) return;
+  const arr=ctpTipo==='material'?ctpCard.carteiraMaterial:ctpCard.carteiraBacklog;
+  const idx=arr.indexOf(ctpEdit); if(idx>=0) arr.splice(idx,1);
+  log(ctpCard,'Carteira de Backlog',`${ctpTipo==='material'?'Material de Instalação':'Backlog de aplicação'}: OS ${ctpEdit.os} excluída`);
+  save(); ctpdlg.close(); refresh();
+};
+
 /* ---------- Maturidade da parada ----------
    Pilares: Componente reserva (parque reserva + TAT), Material de Instalação, Recursos e Insumos (padrão dos componentes da troca,
    com status na parada) e Plano de ação (peso executado ÷ peso total; "em andamento" não conta).
    Só "Disponível" conta como pronto. Pilar sem itens não entra no cálculo (aparece como aviso).
    Bloqueio: ação Crítica ou com Impacto na parada = SIM ainda não executada → Não liberada. */
 const MAT_ST=['Solicitado','Pendente de ação','Disponível'];
-const MAT_PIL=[['comp','Componente reserva'],['peca','Material de Instalação'],['recurso','Recursos'],['insumo','Insumos'],['acao','Plano de ação']];
-const MAT_PESO_PADRAO={comp:2,peca:2,recurso:2,insumo:1,acao:1}, MAT_MIN_PADRAO=80;
+const MAT_PIL=[['comp','Componente reserva'],['peca','Material de Instalação'],['recurso','Recursos'],['insumo','Insumos'],['acao','Plano de ação'],['backlog','Carteira de Backlog']];
+const MAT_PESO_PADRAO={comp:2,peca:2,recurso:2,insumo:1,acao:1,backlog:1}, MAT_MIN_PADRAO=80;
 const MAT_FX={lib:{l:'Liberada',c:'#2E9E4F'},aten:{l:'Atenção',c:'#E8891C'},nao:{l:'Não liberada',c:'#D3392A'},sem:{l:'Sem dados',c:'#7A8089'}};
 const matCfgDoc = () => recAll().find(r=>r.id==='cfg-maturidade');
 const matCfg = () => { const r=matCfgDoc()||{}; const pesos={...MAT_PESO_PADRAO}; Object.keys(pesos).forEach(k=>{ const v=num((r.pesos||{})[k]); if(v!==null) pesos[k]=v; });
@@ -3155,6 +3409,9 @@ function maturidade(c){
   (c.acoes||[]).forEach(a=>{ const pe=pesoOf(a); if(pe===null) semPeso++; else { P.acao.tot+=pe; if(a.executado) P.acao.ok+=pe; }
     if(!a.executado&&(a.prioridade==='Crítica'||a.impacto==='SIM')) bloq.push(a); });
   ['comp','peca','recurso','insumo'].forEach(k=>{ const x=P[k]; x.tot=x.itens.length; x.ok=x.itens.filter(i=>i.st==='Disponível').length; });
+  [...(c.carteiraMaterial||[]),...(c.carteiraBacklog||[])].forEach(it=>{ const dp=carteiraDePara(it.os,c.frota);
+    P.backlog.itens.push({key:'ct:'+it.id,nome:(it.os?'OS '+it.os:'(sem OS)')+(it.desc?' · '+it.desc:''),st:dp.bucket}); });
+  P.backlog.tot=P.backlog.itens.length; P.backlog.ok=P.backlog.itens.filter(i=>i.st==='ok'||i.st==='cancelada').length;
   let sp=0, sw=0;
   MAT_PIL.forEach(([k])=>{ const x=P[k]; if(!x.tot) return; x.pct=x.ok/x.tot; const w=num(cfg.pesos[k])||0; sp+=x.pct*w; sw+=w; });
   const idx=sw?sp/sw:null;
@@ -3167,7 +3424,8 @@ const MAT_PIL_DESC={
   peca:'Itens cadastrados no Padrão de recursos para os componentes desta troca. Status marcado manualmente — Solicitado, Pendente de ação ou Disponível — e só “Disponível” conta como pronto.',
   recurso:'Itens cadastrados no Padrão de recursos para os componentes desta troca. Status marcado manualmente — Solicitado, Pendente de ação ou Disponível — e só “Disponível” conta como pronto.',
   insumo:'Itens cadastrados no Padrão de recursos para os componentes desta troca. Status marcado manualmente — Solicitado, Pendente de ação ou Disponível — e só “Disponível” conta como pronto.',
-  acao:'Peso das ações já executadas dividido pelo peso total das ações com prioridade definida. Ações “em andamento” ainda não contam, e ações sem prioridade ficam de fora da conta.'
+  acao:'Peso das ações já executadas dividido pelo peso total das ações com prioridade definida. Ações “em andamento” ainda não contam, e ações sem prioridade ficam de fora da conta.',
+  backlog:'OS lançadas na Carteira de Backlog desta troca (Material de Instalação + Backlog de aplicação), cruzadas com a Carteira Geral do equipamento. Conta como pronto quando o DE-PARA dá OK ou Cancelada; Atenção e Pendente não contam.'
 };
 function matInfoHtml(m){
   return `<details class="mat-det"><summary>Como funciona esse índice?</summary>
@@ -3193,7 +3451,7 @@ function matBadge(c){
 function matHtml(c){
   const m=maturidade(c), fx=MAT_FX[m.faixa], pc=m.idx===null?0:Math.round(m.idx*100);
   const avisos=[];
-  MAT_PIL.forEach(([k,l])=>{ if(!m.P[k].tot) avisos.push(k==='acao'?'Plano de ação sem ações com prioridade: não entra no cálculo.':k==='comp'?'Troca sem componente: Componente reserva não entra no cálculo.':`${l}: nenhum item no padrão dos componentes desta troca (${m.frota||'–'} · ${recParPm(c.parada,c.pm)}). Não entra no cálculo.`); });
+  MAT_PIL.forEach(([k,l])=>{ if(!m.P[k].tot) avisos.push(k==='acao'?'Plano de ação sem ações com prioridade: não entra no cálculo.':k==='comp'?'Troca sem componente: Componente reserva não entra no cálculo.':k==='backlog'?'Carteira de Backlog sem nenhuma OS lançada: não entra no cálculo.':`${l}: nenhum item no padrão dos componentes desta troca (${m.frota||'–'} · ${recParPm(c.parada,c.pm)}). Não entra no cálculo.`); });
   if(m.semPeso) avisos.push(`${m.semPeso} ${m.semPeso===1?'ação sem prioridade não entra':'ações sem prioridade não entram'} no cálculo (sem peso).`);
   const semCad=m.P.comp.itens.filter(i=>i.st==='Sem cadastro'||i.st==='Sem data'); if(semCad.length) avisos.push(`Componente reserva não verificado: ${semCad.map(i=>i.nome+' ('+i.det+')').join('; ')}.`);
   const barras=MAT_PIL.map(([k,l])=>{ const x=m.P[k], w=m.cfg.pesos[k];
@@ -3412,6 +3670,7 @@ function route(e){
   else if(type==='report') view={type:'report'};
   else if(type==='feedback'&&arg) view={type:'fb',id:arg};
   else if(type==='recursos') view={type:'recursos'};
+  else if(type==='carteira') view={type:'carteira'};
   else if(type==='parque'&&arg==='crc') view={type:'crc'};
   else if(type==='parque') view={type:'parque'};
   else if(type==='card'&&!arg) view={type:'trocas'};
@@ -3439,6 +3698,7 @@ function refresh(){
   else if(view.type==='parque') renderParque();
   else if(view.type==='crc') renderCrc();
   else if(view.type==='recursos') renderRec();
+  else if(view.type==='carteira') renderCarteira();
   else renderBoard();
   renderTotals(); renderTabs(); renderPlanStats(); renderAlertBadge(); renderMinhasBadge(); kpiCores();
 }
@@ -3524,6 +3784,11 @@ document.addEventListener('click',e=>{
   const cmo=t.closest('[data-crcmodo]'); if(cmo){ crcF.modo=cmo.dataset.crcmodo; renderCrc(); return; }
   const crr=t.closest('[data-crc]'); if(crr){ openCrc(crr.dataset.crc); return; }
   const pr=t.closest('[data-pq]'); if(pr){ openPq(pr.dataset.pq); return; }
+  if(t.closest('[data-ctgnew]')){ openCtg(null); return; }
+  if(t.closest('[data-ctgimp]')){ if(!ro()) $('ctIn').click(); return; }
+  const ctg=t.closest('[data-ctg]'); if(ctg){ openCtg(ctg.dataset.ctg); return; }
+  const ctpn=t.closest('[data-ctpnew]'); if(ctpn){ openCtp(ctpn.dataset.ctpnew,ctpn.dataset.cid,null); return; }
+  const ctp=t.closest('[data-ctp]'); if(ctp){ openCtp(ctp.dataset.ctptipo,ctp.dataset.cid,ctp.dataset.ctp); return; }
   const io=t.closest('[data-imgopen]'); if(io){ openImg(io.dataset.imgopen,io.dataset.i); return; }
   const ia=t.closest('[data-imgadd]'); if(ia){ if(!ro()){ $('imgIn').dataset.cid=ia.dataset.imgadd; $('imgIn').click(); } return; }
   const ax=t.closest('[data-anx]'); if(ax){ openAnx(ax.dataset.cid,ax.dataset.anx); return; }

@@ -2,6 +2,19 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-18 — Nova funcionalidade: Carteira de Backlog (OS Material de Instalação + Backlog de aplicação) com DE-PARA automático
+
+Pedido: criar um novo item da parada — Carteira de Backlog, com duas carteiras (OS Material de Instalação e Backlog de aplicação/carteira de criticidade). Depois desse cadastro fixo por parada, o Editor lança a carteira geral do equipamento, e o site faz o DE-PARA automático entre as duas, para saber o status real de cada OS (ok/pendente/etc). A pedido do usuário, entra também como 6º pilar do índice de maturidade.
+
+- **Nova tabela Supabase `carteira_geral`** (RLS idêntica a `parque`/`crc`: editor/dono gravam, leitura pública), adicionada à publicação de realtime. Guarda OS por **equipamento** (frota exata, ex. `CA115` — confirmado com o usuário que "equipamento" aqui é o caminhão específico, não o tipo de frota 793F/794AC).
+- **Nova aba "Carteira Geral"** (Editor/Dono): seletor de equipamento, lista de OS (Status OS/Status OM/Descrição), lançamento manual e importação por planilha (com a opção adicionar/substituir). Inclui um painel "Configurar classificação dos status" que lista todo Status OS já visto e deixa escolher OK/Atenção/Pendente/Cancelada para cada um.
+- **DE-PARA automático**: Status OM com "Encerrado" → sempre OK; com "Cancelado" → sempre Cancelada (regra fixa); o resto segue a classificação configurada (ou um padrão automático: Discrepância/Desvio/Reprogramação → Atenção, resto → Pendente). Vocabulário real de status (SAP PM) recebido do usuário e usado para validar a lógica.
+- **Nova seção "Carteira de Backlog"** na tela de cada troca: duas listas (OS Material de Instalação, com quantidade; Backlog de aplicação), cada OS mostrando o badge de status do DE-PARA (com Status OS/OM real no tooltip). Visível para todos (é um pilar público da maturidade); lançar/editar OS é só Editor/Dono.
+- **6º pilar da Maturidade**: "Carteira de Backlog", peso padrão 1 — conta como pronto quando o DE-PARA dá OK ou Cancelada.
+- Arquivos: `index.html` (nova seção "Carteira de Backlog", integração em `maturidade()`/`MAT_PIL`, sincronização em `flush()`/`startSession()`/`applyPending()`, tab/rota `#/carteira`). SQL aplicado direto no Supabase (tabela + RLS + realtime), sem Edge Function nova.
+- Validado com Playwright/`role='local'` e `role='viewer'` simulado: DE-PARA testado com os 5 valores reais de status, resultado conferido linha a linha (ok/pendente/não encontrada/atenção/cancelada); pilar da maturidade calculando `tot`/`ok`/`pct` corretos; aba Carteira Geral e botões de lançamento corretamente escondidos para Visualizador, com a seção da troca continuando visível e só leitura.
+- De brinde, a mesma escolha "adicionar ou substituir" pedida para esta importação foi aplicada também à importação do Padrão de recursos (pedido anterior do usuário que ainda não tinha sido feito).
+
 ## 2026-11-18 — Corrige import de planilha (coluna QNTD) e renomeia "Peças" para "Material de Instalação"
 
 Pedido: a importação da planilha de peças (padrão da base, ex.: MATERIAL DE R&I MOTOR DIESEL) não estava trazendo a quantidade dos itens; e renomear a categoria "Peças" para "Material de Instalação".
