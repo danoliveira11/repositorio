@@ -63,6 +63,8 @@ Cada item de `cards[i].acoes[]` tem: `id, ponto, acao, previsto, executado, resp
 
 `cards[i].carteiraMaterial[]` (OS Material de Instalação) e `cards[i].carteiraBacklog[]` (Backlog de aplicação) — as duas listas da Carteira de Backlog da parada, ver seção própria abaixo. Cada item: `id, os, desc, qtd` (`qtd` só é usada/mostrada em `carteiraMaterial`).
 
+Cada item da tabela `crc` (OS do CRC) tem um campo `atualizado` (ISO, igual ao padrão usado em `recursos`/`carteira_geral`) — gravado ao criar/editar a OS (`$('crcSave').onclick`), ao importar planilha (`parseCrc`) e ao mudar de status pelo quadro (arrastar entre colunas). O cabeçalho do INFO CRC (`renderCrc`) mostra "atualizado em" com o mais recente de todos (`all.reduce(...)`), ou nada se nenhuma OS tiver esse campo ainda (OS cadastradas antes dessa migração não têm `atualizado` até serem editadas de novo).
+
 Buckets de Storage: `anexos` (INSERT/DELETE só editor/dono via RLS direta; signed upload URL contorna isso para o responsável — ver Edge Functions) e `imagens` (mesma regra, só editor/dono grava).
 
 ## Papéis e permissões

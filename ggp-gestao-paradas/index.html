@@ -2759,6 +2759,7 @@ function renderCrc(){
   const gestoes=uniq(all.map(o=>String(o.gestao||'').trim()).filter(Boolean));
   const frotas=uniq(all.map(o=>crcFrota(o.modelo)));
   const grupos=crcGrupos(list);
+  const ultima=all.reduce((m,o)=>o.atualizado&&(!m||o.atualizado>m)?o.atualizado:m,null);
   const barras=(titulo,arr,cor)=>{ const mx=Math.max(1,...arr.map(x=>x[1]));
     return `<div class="crc-box"><h4>${titulo}</h4>${arr.length?arr.map(([k,v])=>`<div class="crc-hb"><span>${esc(k)}</span><i><em style="width:${v/mx*100}%;background:${cor}"></em></i><b>${v}</b></div>`).join(''):'<p class="count">Sem dados.</p>'}</div>`; };
   const cas=crcConta(list.filter(o=>crcCA(o.texto)),o=>crcCA(o.texto)).slice(0,8);
@@ -2772,7 +2773,7 @@ function renderCrc(){
       <td class="mid"><b>${esc(crcTxt(o.texto))}</b></td><td class="nowrap">${esc(String(o.gestao||'').trim())}</td>
       <td class="crc-pre">${esc(crcTxt(o.stSotreq))}</td><td class="nowrap">${esc(String(o.modelo||'').trim())}</td></tr>`).join('')).join('');
   $('vCrc').innerHTML=`
-    <div class="vhead"><h2>INFO CRC<small>Componentes em reforma no CRC · Caminhões 794AC e 793F | S11D</small></h2>
+    <div class="vhead"><h2>INFO CRC<small>Componentes em reforma no CRC · Caminhões 794AC e 793F | S11D${ultima?' · atualizado em '+fmtTs(ultima):''}</small></h2>
       <div class="meta"><button class="btn" data-go="#/parque">← Parque reserva</button> &nbsp; <b>${list.length}</b> de ${all.length} ordens de serviço</div></div>
     <div class="panel">
       <div class="crc-bar">
@@ -2841,7 +2842,7 @@ document.addEventListener('drop',e=>{
   const byId=id=>crcAll().find(x=>x.id===id), pv=pvEl&&byId(pvEl.dataset.crc), nx=nxEl&&byId(nxEl.dataset.crc);
   const novo=lane.dataset.lane, ant=String(o.status||'').trim();
   o.ordem = pv&&nx ? ((pv.ordem??0)+(nx.ordem??0))/2 : pv ? (pv.ordem??0)+1 : nx ? (nx.ordem??0)-1 : (o.ordem??0);
-  if(crcStKey(novo)!==crcStKey(ant)){ o.status=novo; log(null,'INFO CRC',`OS ${o.os}: STATUS: ${ant||'–'} → ${novo}`); toast(`OS ${o.os} movida para ${novo}.`); }
+  if(crcStKey(novo)!==crcStKey(ant)){ o.status=novo; o.atualizado=new Date().toISOString(); log(null,'INFO CRC',`OS ${o.os}: STATUS: ${ant||'–'} → ${novo}`); toast(`OS ${o.os} movida para ${novo}.`); }
   save(); renderCrc();
 });
 const crcdlg=$('crcdlg'); let crcEdit=null;
@@ -2864,7 +2865,7 @@ $('crcSave').onclick=()=>{
   const d={}; CRC_COLS.forEach(([k])=>{ d[k]=$('crc_'+k).value.trim(); });
   const compNovo=$('crc_componente').value.trim().toUpperCase();
   if(crcEdit&&String(crcEdit.componente||'')!==compNovo) log(null,'INFO CRC',`OS ${d.os}: COMPONENTE: ${crcEdit.componente||'pelo texto breve'} → ${compNovo||'pelo texto breve'}`);
-  d.componente=compNovo;
+  d.componente=compNovo; d.atualizado=new Date().toISOString();
   if(!d.os){ $('crcErr').textContent='Informe a ordem de serviço.'; $('crc_os').focus(); return; }
   if(crcAll().some(o=>o!==crcEdit&&String(o.os).trim()===d.os)){ $('crcErr').textContent='Já existe uma OS com esse número.'; $('crc_os').focus(); return; }
   if(crcEdit){ const df=CRC_COLS.filter(([k])=>String(crcEdit[k]??'')!==String(d[k]??'')).map(([k,l])=>`${l}: ${crcEdit[k]||'–'} → ${d[k]||'–'}`).join('; ');
@@ -2886,9 +2887,9 @@ function parseCrc(buf){
   const H=rows[hi].map(normH), at=n=>H.findIndex(h=>h===n);
   const C={os:at('ORDEM DE SERVICO'),gestao:at('GESTAO'),stSotreq:at('STATUS SOTREQ'),status:at('STATUS'),modelo:at('MODELO'),texto:at('TEXTO BREVE'),componente:at('COMPONENTE')};
   const txt=(r,i)=>i<0||r[i]===null||r[i]===undefined?'':String(r[i]).trim();
-  const out=[]; let ordem=0;
+  const out=[]; let ordem=0; const agora=new Date().toISOString();
   rows.slice(hi+1).forEach(r=>{ const os=txt(r,C.os); if(!os) return;
-    out.push({id:uid(),ordem:ordem++,os,gestao:txt(r,C.gestao),stSotreq:txt(r,C.stSotreq),status:txt(r,C.status),modelo:txt(r,C.modelo),texto:txt(r,C.texto),componente:txt(r,C.componente).toUpperCase()}); });
+    out.push({id:uid(),ordem:ordem++,os,gestao:txt(r,C.gestao),stSotreq:txt(r,C.stSotreq),status:txt(r,C.status),modelo:txt(r,C.modelo),texto:txt(r,C.texto),componente:txt(r,C.componente).toUpperCase(),atualizado:agora}); });
   return out;
 }
 $('crcIn').onchange=e=>{

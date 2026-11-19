@@ -2,6 +2,15 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-19 — Data de atualização no INFO CRC
+
+Pedido: colocar a data de atualização no INFO CRC.
+
+- Cada OS do CRC ganhou um campo `atualizado` (ISO, mesmo padrão já usado em Padrão de recursos e Carteira Geral), gravado ao criar/editar a OS, ao importar planilha e ao mudar o status pelo quadro (arrastar entre colunas).
+- O cabeçalho do INFO CRC agora mostra "atualizado em [data/hora]" com a mais recente entre todas as OS. OS antigas, cadastradas antes dessa mudança, só passam a ter essa data depois da próxima edição/importação — não dá pra saber quando foram atualizadas antes disso.
+- Arquivo: `index.html` (`renderCrc`, `$('crcSave').onclick`, `parseCrc`, handler de `drop` do quadro). Sem mudança de schema (campo novo dentro do `data jsonb` já existente) nem de Edge Function.
+- Validado com Playwright: criei uma OS de verdade pelo formulário (sem nenhuma OS antes, o cabeçalho não mostra data; depois de criar, mostra a data/hora certa) e confirmei o campo `atualizado` salvo no item.
+
 ## 2026-11-18 — Corrige seleção de Responsável na ação e reforça a persistência dos blocos recolhíveis em todas as telas
 
 Pedido: (1) o campo "Responsável (usuário do sistema)" na ação não deixava desmarcar um usuário já marcado com um clique normal; (2) revisar de novo o comportamento dos blocos que abrem/fecham sozinhos — o usuário reportou que, mesmo após a correção anterior (ver entrada abaixo, "Corrige blocos da Maturidade..."), o problema continuava acontecendo em algum lugar.
