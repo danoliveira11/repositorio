@@ -2,14 +2,14 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
-## 2026-11-19 — Data de atualização no INFO CRC
+## 2026-11-19 — Data de atualização no INFO CRC (corrigido: também aparece nas OS que já existiam)
 
-Pedido: colocar a data de atualização no INFO CRC.
+Pedido: colocar a data de atualização no INFO CRC. Na primeira versão (campo novo `atualizado`, só gravado a partir de agora), o usuário testou em produção e não viu nenhuma data — porque todas as OS já cadastradas vieram de antes dessa mudança, então nenhuma tinha o campo ainda.
 
-- Cada OS do CRC ganhou um campo `atualizado` (ISO, mesmo padrão já usado em Padrão de recursos e Carteira Geral), gravado ao criar/editar a OS, ao importar planilha e ao mudar o status pelo quadro (arrastar entre colunas).
-- O cabeçalho do INFO CRC agora mostra "atualizado em [data/hora]" com a mais recente entre todas as OS. OS antigas, cadastradas antes dessa mudança, só passam a ter essa data depois da próxima edição/importação — não dá pra saber quando foram atualizadas antes disso.
-- Arquivo: `index.html` (`renderCrc`, `$('crcSave').onclick`, `parseCrc`, handler de `drop` do quadro). Sem mudança de schema (campo novo dentro do `data jsonb` já existente) nem de Edge Function.
-- Validado com Playwright: criei uma OS de verdade pelo formulário (sem nenhuma OS antes, o cabeçalho não mostra data; depois de criar, mostra a data/hora certa) e confirmei o campo `atualizado` salvo no item.
+- Cada OS do CRC ganhou um campo `atualizado` (ISO, mesmo padrão já usado em Padrão de recursos e Carteira Geral), gravado ao criar/editar a OS, ao importar planilha e ao mudar o status pelo quadro (arrastar entre colunas). Isso por si só só vale a partir de agora — não resolve nada pra quem já tinha OS cadastradas.
+- **Correção**: a tabela `crc` (como toda tabela com autor) já tinha, do lado do Postgres, uma coluna `updated_at` preenchida em **todo** `upsert` desde que a tabela existe — só que o app nunca lia essa coluna de volta (o adaptador só buscava `id,data`). Passou a buscar `updated_at` também (`sbAdapter`/`onSnapshot`) e guardar isso à parte, por OS, em `crcServerAt` (não dentro do item, pra não escrever esse valor de volta no próximo save). `crcAtualizadoDe(o)` usa `data.atualizado` quando existe e cai para `crcServerAt` quando não — então toda OS que já estava em produção passa a mostrar uma data correta (de quando foi gravada/importada por último), sem precisar esperar ser editada de novo.
+- Arquivos: `index.html` (`sbAdapter`, `applyPending`, `crcAtualizadoDe`/`crcServerAt`, `renderCrc`, `$('crcSave').onclick`, `parseCrc`, handler de `drop` do quadro). Sem mudança de schema (a coluna já existia; só passou a ser lida) nem de Edge Function.
+- Validado com Playwright: (a) fluxo local/demo, criando uma OS de verdade pelo formulário — mostra a data certa; (b) simulação do cenário de produção que causou o problema — OS sem `data.atualizado`, só com o `updated_at` do Postgres vindo do snapshot — confirmando que o cabeçalho mostra a data mesmo assim, e que uma OS com `data.atualizado` mais recente continua vencendo o `updated_at` mais antigo.
 
 ## 2026-11-18 — Corrige seleção de Responsável na ação e reforça a persistência dos blocos recolhíveis em todas as telas
 

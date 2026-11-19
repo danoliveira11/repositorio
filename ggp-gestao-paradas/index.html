@@ -1316,7 +1316,9 @@ function applyPending(){
     synced.parque=new Map(state.parque.map(p=>[p.id,JSON.stringify(p)])); refresh(); }
   if(pending.crc){ const snap=pending.crc; pending.crc=null;
     state.crc=snap.docs.map(d=>{ const o=JSON.parse(JSON.stringify(d.data())); o.id=d.id; return o; });
-    synced.crc=new Map(state.crc.map(o=>[o.id,JSON.stringify(o)])); refresh(); }
+    synced.crc=new Map(state.crc.map(o=>[o.id,JSON.stringify(o)]));
+    crcServerAt=new Map(snap.docs.map(d=>[d.id,d.updatedAt]));
+    refresh(); }
   if(pending.recursos){ const snap=pending.recursos; pending.recursos=null;
     state.recursos=snap.docs.map(d=>{ const o=JSON.parse(JSON.stringify(d.data())); o.id=d.id; return o; });
     synced.recursos=new Map(state.recursos.map(o=>[o.id,JSON.stringify(o)])); refresh(); }
@@ -1356,10 +1358,10 @@ function sbAdapter(){
       }),
       onSnapshot(next,err){
         let t=null;
-        const load=async()=>{ let r=sb.from(table).select('id,data');
+        const load=async()=>{ let r=sb.from(table).select(table==='eventos'?'id,data':'id,data,updated_at');
           if(this._order) r=r.order('created_at',{ascending:false}); if(this._limit) r=r.limit(this._limit);
           const {data,error}=await r; if(error){ err&&err(error); return; }
-          const docs=(data||[]).map(x=>({id:x.id,data:()=>x.data})); next({docs,empty:!docs.length,size:docs.length}); };
+          const docs=(data||[]).map(x=>({id:x.id,data:()=>x.data,updatedAt:x.updated_at})); next({docs,empty:!docs.length,size:docs.length}); };
         load();
         sb.channel('rt-'+table).on('postgres_changes',{event:'*',schema:'public',table},()=>{ clearTimeout(t); t=setTimeout(load,250); }).subscribe();
         return ()=>{};
@@ -2714,6 +2716,8 @@ const crcFrota = m => /^\s*793/.test(m||'')?'793F':/^\s*794/.test(m||'')?'794AC'
 const crcCA = t => { const m=String(t||'').match(/\bCA\s?(\d{3})\b/i); return m?'CA'+m[1]:''; };
 const crcTxt = s => String(s??'').replace(/[ \t]+\n/g,'\n').replace(/\n[ \t]+/g,'\n').trim();
 const crcAll = () => Array.isArray(state.crc) ? state.crc : (state.crc=[]);
+let crcServerAt=new Map();  // id -> updated_at do Postgres (fallback de data de atualização pra OS gravadas antes do campo data.atualizado existir)
+const crcAtualizadoDe = o => o.atualizado||crcServerAt.get(o.id)||null;
 /* Componente: o que for digitado no campo COMPONENTE da OS vale; sem ele, é identificado por palavra-chave no TEXTO BREVE */
 const CRC_COMP_REGRAS=[
   ['MOTOR DO VENTILADOR',/MOTOR DO VENTILADOR/],['BOMBA DO VENTILADOR',/BOMBA (DO )?VENTILADOR/],
@@ -2759,7 +2763,7 @@ function renderCrc(){
   const gestoes=uniq(all.map(o=>String(o.gestao||'').trim()).filter(Boolean));
   const frotas=uniq(all.map(o=>crcFrota(o.modelo)));
   const grupos=crcGrupos(list);
-  const ultima=all.reduce((m,o)=>o.atualizado&&(!m||o.atualizado>m)?o.atualizado:m,null);
+  const ultima=all.reduce((m,o)=>{ const t=crcAtualizadoDe(o); return t&&(!m||t>m)?t:m; },null);
   const barras=(titulo,arr,cor)=>{ const mx=Math.max(1,...arr.map(x=>x[1]));
     return `<div class="crc-box"><h4>${titulo}</h4>${arr.length?arr.map(([k,v])=>`<div class="crc-hb"><span>${esc(k)}</span><i><em style="width:${v/mx*100}%;background:${cor}"></em></i><b>${v}</b></div>`).join(''):'<p class="count">Sem dados.</p>'}</div>`; };
   const cas=crcConta(list.filter(o=>crcCA(o.texto)),o=>crcCA(o.texto)).slice(0,8);
