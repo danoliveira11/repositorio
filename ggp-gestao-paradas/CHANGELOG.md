@@ -2,6 +2,17 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-24 — Filtro e imagens nos pilares da Maturidade, Carteira de Backlog recolhível, e todos os blocos do Plano de ação começam fechados
+
+Pedido: (1) filtro em Material de Instalação, Recursos e Insumos (pilares da Maturidade, dentro do Plano de ação); (2) botão de minimizar também nas duas listas da Carteira de Backlog; (3) as imagens cadastradas no Padrão de recursos (peça/recurso/insumo) aparecerem também no Plano de ação; (4) todos os blocos do Plano de ação devem começar recolhidos, só abrindo se o usuário clicar.
+
+- **Filtro em Material de Instalação, Recursos e Insumos**: cada um desses 3 pilares ganhou busca (item/componente/orientação) + filtro por status (Solicitado/Pendente de ação/Disponível/Sem status), igual ao padrão já usado na Carteira de Backlog e no Plano de ação. Estado em `matFilter`, resetado ao trocar de troca. Como nas outras listas filtráveis do app, o filtro só esconde linhas da tabela — o resumo no cabeçalho continua contando todos os itens.
+- **Imagens no Plano de ação**: os itens de Material de Instalação, Recursos e Insumos agora mostram, dentro do pilar, a mesma foto cadastrada no Padrão de recursos (quando existe) — miniatura clicável que abre a imagem ampliada, reaproveitando o visualizador que já existia na tela de Padrão de recursos.
+- **Carteira de Backlog recolhível**: as duas listas (OS Material de Instalação, Backlog de aplicação) agora são blocos que abrem/fecham, com o resumo (contagem por status do DE-PARA) visível mesmo fechado; os botões "+ OS"/"Importar" e a tabela só aparecem depois de abrir.
+- **Todos os blocos do Plano de ação começam fechados**: os pilares da Maturidade (inclusive Componente reserva) abriam automaticamente quando tinham algum item pendente, mesmo sem o usuário nunca ter clicado — removido; agora todo bloco (pilares e Carteira de Backlog) começa fechado e só abre com clique do usuário, com o estado lembrado entre redesenhos da tela como já acontecia nos outros blocos recolhíveis do app.
+- Arquivos: `index.html` (`maturidade`, `matFilter`/`matFiltrar`/`matFiltroHtml`, `tab()` em `matHtml`, `carteiraSecHtml`, `renderCard`, `route`). Sem mudança de schema nem de Edge Function.
+- Validado com Playwright: estado inicial fechado de cada bloco mesmo com pendência; imagem aparece e hidrata corretamente, clique real na miniatura abre o modal; filtro de busca e de status reduzem as linhas sem mudar o resumo do cabeçalho; clique real pra abrir um bloco (pilar e Carteira de Backlog) e confirmação de que o estado se mantém depois de um re-render real da tela.
+
 ## 2026-11-19 — Data de atualização no INFO CRC (corrigido: também aparece nas OS que já existiam)
 
 Pedido: colocar a data de atualização no INFO CRC. Na primeira versão (campo novo `atualizado`, só gravado a partir de agora), o usuário testou em produção e não viu nenhuma data — porque todas as OS já cadastradas vieram de antes dessa mudança, então nenhuma tinha o campo ainda.

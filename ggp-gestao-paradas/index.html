@@ -813,6 +813,7 @@ body[data-view="carteira"] #vCarteira{display:block}
 .ct-resumo b{color:var(--c);font-weight:700}
 .ct-grp{margin-top:16px}
 .ct-grp:first-of-type{margin-top:0}
+.mat-det .ct-grp{margin:0 10px 10px}
 .ct-grph{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-bottom:8px}
 .ct-grph b{font-family:var(--cond);font-size:17px;font-weight:700}
 .mat-cfgb input{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:6px 8px;color:var(--ink)}
@@ -1775,8 +1776,10 @@ function renderCard(id){
   $('acQ').oninput=e=>{ acFilter.q=e.target.value; const pos=e.target.selectionStart; renderCard(id); const q=$('acQ'); q.focus(); q.setSelectionRange(pos,pos); };
   $('vCard').querySelectorAll('.ct-fq').forEach(el=>{ const key=el.dataset.ctf; el.oninput=e=>{ ctFilter[key]=e.target.value; const pos=e.target.selectionStart; renderCard(id); const ni=$('vCard').querySelector(`[data-ctf="${key}"]`); if(ni){ ni.focus(); ni.setSelectionRange(pos,pos); } }; });
   $('vCard').querySelectorAll('.ct-fsel').forEach(el=>{ const key=el.dataset.ctf; el.onchange=e=>{ ctFilter[key]=e.target.value; renderCard(id); }; });
+  $('vCard').querySelectorAll('.mat-fq').forEach(el=>{ const key=el.dataset.matf; el.oninput=e=>{ matFilter[key]=e.target.value; const pos=e.target.selectionStart; renderCard(id); const ni=$('vCard').querySelector(`[data-matf="${key}"]`); if(ni){ ni.focus(); ni.setSelectionRange(pos,pos); } }; });
+  $('vCard').querySelectorAll('.mat-fsel').forEach(el=>{ const key=el.dataset.matf; el.onchange=e=>{ matFilter[key]=e.target.value; renderCard(id); }; });
   wireDetOpen($('vCard'));
-  kpiCores(); hydrateImgs(c);
+  kpiCores(); hydrateImgs(c); hydrateRec($('vCard'));
 }
 /* ---------- Imagens do plano (Supabase Storage; fora dele, guardadas no próprio card) ---------- */
 const IMG_BUCKET='imagens'; const imgUrls={};
@@ -3396,16 +3399,19 @@ function carteiraSecHtml(c){
   const matList=ctFiltrar(matAll,c.frota,ctFilter.matQ,ctFilter.matSt), bkList=ctFiltrar(bkAll,c.frota,ctFilter.bkQ,ctFilter.bkSt);
   const linhaMat=matList.map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="material" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td class="num">${it.qtd===''||it.qtd==null?'':esc(it.qtd)}</td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
   const linhaBk=bkList.map(it=>`<tr ${ro()?'class="nolink"':`data-ctp="${it.id}" data-ctptipo="backlog" data-cid="${c.id}"`}><td class="nowrap"><b>${esc(it.os)}</b></td><td>${esc(it.desc||'')}</td><td>${carteiraBadge(carteiraDePara(it.os,c.frota))}</td></tr>`).join('');
+  const pkMat='ctmat-'+c.id, pkBk='ctbk-'+c.id;
   return `<div class="sec"><h3>Carteira de Backlog</h3>
     <p class="count">OS necessárias para esta parada, cruzadas automaticamente com a Carteira Geral de ${esc(c.frota)} para saber o status real de cada uma (DE-PARA).</p>
-    <div class="ct-grp"><div class="ct-grph"><b>OS Material de Instalação</b><span class="count">insumos necessários</span>${ctResumoHtml(matR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpimp="material" data-cid="${c.id}">Importar (Excel)</button><button class="btn lt mini" data-ctpnew="material" data-cid="${c.id}">+ OS</button>`}</div>
-      ${matAll.length?ctFiltroHtml('mat',ctFilter.matQ,ctFilter.matSt):''}
-      <div class="twrap"><table><thead><tr><th>OS</th><th class="num">Qtd</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
-        <tbody>${linhaMat||`<tr class="empty-row"><td colspan="4">${!matAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div>
-    <div class="ct-grp"><div class="ct-grph"><b>Backlog de aplicação</b><span class="count">carteira de criticidade</span>${ctResumoHtml(bkR)}<span style="flex:1"></span>${ro()?'':`<button class="btn lt mini" data-ctpimp="backlog" data-cid="${c.id}">Importar (Excel)</button><button class="btn lt mini" data-ctpnew="backlog" data-cid="${c.id}">+ OS</button>`}</div>
-      ${bkAll.length?ctFiltroHtml('bk',ctFilter.bkQ,ctFilter.bkSt):''}
-      <div class="twrap"><table><thead><tr><th>OS</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
-        <tbody>${linhaBk||`<tr class="empty-row"><td colspan="3">${!bkAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div>
+    <details class="mat-det" data-pkey="${pkMat}"${detOpen(pkMat,false)?' open':''}><summary><b>OS Material de Instalação</b> <span class="count">insumos necessários</span>${ctResumoHtml(matR)}</summary>
+      <div class="ct-grp">${ro()?'':`<div class="ct-grph"><span style="flex:1"></span><button class="btn lt mini" data-ctpimp="material" data-cid="${c.id}">Importar (Excel)</button><button class="btn lt mini" data-ctpnew="material" data-cid="${c.id}">+ OS</button></div>`}
+        ${matAll.length?ctFiltroHtml('mat',ctFilter.matQ,ctFilter.matSt):''}
+        <div class="twrap"><table><thead><tr><th>OS</th><th class="num">Qtd</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
+          <tbody>${linhaMat||`<tr class="empty-row"><td colspan="4">${!matAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div></details>
+    <details class="mat-det" data-pkey="${pkBk}"${detOpen(pkBk,false)?' open':''}><summary><b>Backlog de aplicação</b> <span class="count">carteira de criticidade</span>${ctResumoHtml(bkR)}</summary>
+      <div class="ct-grp">${ro()?'':`<div class="ct-grph"><span style="flex:1"></span><button class="btn lt mini" data-ctpimp="backlog" data-cid="${c.id}">Importar (Excel)</button><button class="btn lt mini" data-ctpnew="backlog" data-cid="${c.id}">+ OS</button></div>`}
+        ${bkAll.length?ctFiltroHtml('bk',ctFilter.bkQ,ctFilter.bkSt):''}
+        <div class="twrap"><table><thead><tr><th>OS</th><th>Descrição</th><th>Status (DE-PARA)</th></tr></thead>
+          <tbody>${linhaBk||`<tr class="empty-row"><td colspan="3">${!bkAll.length?(ro()?'Nenhuma OS cadastrada.':'Nenhuma OS cadastrada. Use “+ OS” para lançar.'):'Nenhuma OS com esse filtro.'}</td></tr>`}</tbody></table></div></div></details>
   </div>`;
 }
 const ctpdlg=$('ctpdlg'); let ctpEdit=null, ctpCard=null, ctpTipo=null;
@@ -3453,6 +3459,13 @@ const MAT_ST=['Solicitado','Pendente de ação','Disponível'];
 const MAT_PIL=[['comp','Componente reserva'],['peca','Material de Instalação'],['recurso','Recursos'],['insumo','Insumos'],['acao','Plano de ação'],['backlog','Carteira de Backlog']];
 const MAT_PESO_PADRAO={comp:2,peca:2,recurso:2,insumo:1,acao:1,backlog:1}, MAT_MIN_PADRAO=80;
 const MAT_FX={lib:{l:'Liberada',c:'#2E9E4F'},aten:{l:'Atenção',c:'#E8891C'},nao:{l:'Não liberada',c:'#D3392A'},sem:{l:'Sem dados',c:'#7A8089'}};
+const matFilter={pecaQ:'',pecaSt:'',recursoQ:'',recursoSt:'',insumoQ:'',insumoSt:''};
+const matStatusOpts = cur => `<option value="">Todos os status</option>${MAT_ST.map(s=>`<option value="${esc(s)}" ${cur===s?'selected':''}>${s}</option>`).join('')}<option value="__sem" ${cur==='__sem'?'selected':''}>Sem status</option>`;
+const matFiltrar = (itens,q,st) => { const qq=normH(q); return itens.filter(i=>{
+  if(qq&&!normH([i.nome,i.comp,i.orient].join(' ')).includes(qq)) return false;
+  if(st==='__sem'){ if(i.st) return false; } else if(st&&i.st!==st) return false;
+  return true; }); };
+const matFiltroHtml = (k,q,st) => `<div class="atools" style="margin:4px 0 8px"><input class="mat-fq" data-matf="${k}Q" type="search" placeholder="Buscar item, componente ou orientação" value="${esc(q)}"><select class="mat-fsel" data-matf="${k}St">${matStatusOpts(st)}</select></div>`;
 const matCfgDoc = () => recAll().find(r=>r.id==='cfg-maturidade');
 const matCfg = () => { const r=matCfgDoc()||{}; const pesos={...MAT_PESO_PADRAO}; Object.keys(pesos).forEach(k=>{ const v=num((r.pesos||{})[k]); if(v!==null) pesos[k]=v; });
   return {pesos,min:num(r.min)!==null?num(r.min):MAT_MIN_PADRAO}; };
@@ -3474,7 +3487,7 @@ function maturidade(c){
   const vistos=new Set();
   (c.componentes||[]).forEach(key=>{ if(vistos.has(key)) return; vistos.add(key); const pd=recDe(key,frota,c.parada,c.pm); if(!pd) return;
     (pd.itens||[]).forEach(it=>{ const k=pd.id+':'+it.id;
-      P[recCatOf(it)].itens.push({key:k,nome:[it.pn,it.desc].filter(Boolean).join(' · ')||'(sem descrição)',qtd:it.qtd,un:it.un,orient:it.orient,comp:compLabel(key),st:mst[k]||''}); }); });
+      P[recCatOf(it)].itens.push({key:k,nome:[it.pn,it.desc].filter(Boolean).join(' · ')||'(sem descrição)',qtd:it.qtd,un:it.un,orient:it.orient,comp:compLabel(key),st:mst[k]||'',img:it.img||null,imgKey:pd.id+'/'+it.id}); }); });
   let semPeso=0; const bloq=[];
   (c.acoes||[]).forEach(a=>{ const pe=pesoOf(a); if(pe===null) semPeso++; else { P.acao.tot+=pe; if(a.executado) P.acao.ok+=pe; }
     if(!a.executado&&(a.prioridade==='Crítica'||a.impacto==='SIM')) bloq.push(a); });
@@ -3533,11 +3546,13 @@ function matHtml(c){
   const stSel=(c,i)=>ro()?`<span class="mat-st" data-s="${esc(i.st)}">${esc(i.st||'Sem status')}</span>`
     :`<select class="mat-sel" data-matst="${esc(i.key)}" data-cid="${c.id}" data-s="${esc(i.st)}"><option value="">Sem status</option>${MAT_ST.map(s=>`<option${i.st===s?' selected':''}>${s}</option>`).join('')}</select>`;
   const tab=(k)=>{ const x=m.P[k]; if(!x.tot) return '';
-    const pend=x.tot-x.ok, pk='pil-'+k+'-'+c.id, abrir=detOpen(pk,!!pend);
+    const pend=x.tot-x.ok, pk='pil-'+k+'-'+c.id, abrir=detOpen(pk,false);
     if(k==='comp') return `<details class="mat-det" data-pkey="${pk}"${abrir?' open':''}><summary><b>${x.l}</b> <span class="count">${x.ok} de ${x.tot} disponíveis · automático pelo parque reserva</span></summary>
       <div class="twrap"><table><thead><tr><th>Componente</th><th>Situação</th><th>Detalhe</th></tr></thead><tbody>${x.itens.map(i=>`<tr class="nolink"><td><b>${esc(i.nome)}</b></td><td><span class="mat-st" data-s="${esc(i.st)}">${esc(i.st)}</span></td><td class="count">${esc(i.det)}</td></tr>`).join('')}</tbody></table></div></details>`;
+    const fq=matFilter[k+'Q']||'', fst=matFilter[k+'St']||'', itensF=matFiltrar(x.itens,fq,fst);
     return `<details class="mat-det" data-pkey="${pk}"${abrir?' open':''}><summary><b>${x.l}</b> <span class="count">${x.ok} de ${x.tot} disponíveis${pend?` · ${pend} pendente(s)`:''}</span></summary>
-      <div class="twrap"><table><thead><tr><th>Item</th><th>Componente</th><th class="num">Qtd</th><th>Orientação</th><th>Status na parada</th></tr></thead><tbody>${x.itens.map(i=>`<tr class="nolink"><td><b>${esc(i.nome)}</b></td><td class="nowrap">${esc(i.comp)}</td><td class="num nowrap">${esc(recQtd(i.qtd))}${i.un?' '+esc(i.un):''}</td><td class="rec-or">${esc(i.orient||'')}</td><td>${stSel(c,i)}</td></tr>`).join('')}</tbody></table></div></details>`; };
+      ${matFiltroHtml(k,fq,fst)}
+      <div class="twrap"><table><thead><tr><th></th><th>Item</th><th>Componente</th><th class="num">Qtd</th><th>Orientação</th><th>Status na parada</th></tr></thead><tbody>${itensF.map(i=>`<tr class="nolink"><td class="rec-imgc">${i.img?`<img class="rec-img" data-recimg="${esc(i.imgKey)}" data-recver="${esc(i.imgKey)}" alt="${esc(i.nome)}" title="Clique para ampliar">`:''}</td><td><b>${esc(i.nome)}</b></td><td class="nowrap">${esc(i.comp)}</td><td class="num nowrap">${esc(recQtd(i.qtd))}${i.un?' '+esc(i.un):''}</td><td class="rec-or">${esc(i.orient||'')}</td><td>${stSel(c,i)}</td></tr>`).join('')||`<tr class="empty-row"><td colspan="6">Nenhum item com esse filtro.</td></tr>`}</tbody></table></div></details>`; };
   const cfg=podeReport()?`<details class="mat-cfg" data-pkey="matcfg"${detOpen('matcfg',false)?' open':''}><summary>Configurar índice (pesos e mínimo)</summary><div class="mat-cfgb">
       ${MAT_PIL.map(([k,l])=>`<label class="f">${l}<input type="number" min="0" step="0.5" id="matw_${k}" value="${m.cfg.pesos[k]}"></label>`).join('')}
       <label class="f">Mínimo para liberar (%)<input type="number" min="0" max="100" step="1" id="matmin" value="${m.cfg.min}"></label>
@@ -3751,7 +3766,7 @@ function route(e){
   else if(type==='card'&&arg){
     const old=e&&e.oldURL?('#'+(e.oldURL.split('#')[1]||'/')):'#/';
     if(!old.startsWith('#/card/')) backHash=old;
-    if(!view.id||view.id!==arg){ acFilter.status=''; acFilter.q=''; acFilter.resp=''; acFilter.prio=''; ctFilter.matQ=''; ctFilter.matSt=''; ctFilter.bkQ=''; ctFilter.bkSt=''; }
+    if(!view.id||view.id!==arg){ acFilter.status=''; acFilter.q=''; acFilter.resp=''; acFilter.prio=''; ctFilter.matQ=''; ctFilter.matSt=''; ctFilter.bkQ=''; ctFilter.bkSt=''; Object.keys(matFilter).forEach(k=>matFilter[k]=''); }
     view={type:'card',id:arg};
   } else if(type==='semana'&&arg) view={type:'week',key:toIso(monday(parse(arg)))};
   else view={type:'board'};
