@@ -993,9 +993,9 @@ body[data-view="carteira"] #vCarteira{display:block}
   </div>
 </dialog>
 <dialog id="trvdlg">
-  <div class="m-head">Troca não pode ser agendada</div>
+  <div class="m-head">Componente indisponível no parque reserva</div>
   <div id="trvBody" class="trv-body"></div>
-  <div class="m-foot"><span class="sp"></span><button class="btn ghost" id="trvUsar" hidden>Usar data</button><button class="btn primary" id="trvOk">Entendi</button></div>
+  <div class="m-foot"><button class="btn danger" id="trvForcar" hidden>Agendar mesmo assim</button><span class="sp"></span><button class="btn ghost" id="trvUsar" hidden>Usar data</button><button class="btn primary" id="trvOk">Entendi</button></div>
 </dialog>
 <dialog id="recdlg">
   <div class="m-head" id="recTitle">Item do padrão</div>
@@ -3540,6 +3540,7 @@ function matHtml(c){
   MAT_PIL.forEach(([k,l])=>{ if(!m.P[k].tot) avisos.push(k==='acao'?'Plano de ação sem ações com prioridade: não entra no cálculo.':k==='comp'?'Troca sem componente: Componente reserva não entra no cálculo.':k==='backlog'?'Carteira de Backlog sem nenhuma OS lançada: não entra no cálculo.':`${l}: nenhum item no padrão dos componentes desta troca (${m.frota||'–'} · ${recParPm(c.parada,c.pm)}). Não entra no cálculo.`); });
   if(m.semPeso) avisos.push(`${m.semPeso} ${m.semPeso===1?'ação sem prioridade não entra':'ações sem prioridade não entram'} no cálculo (sem peso).`);
   const semCad=m.P.comp.itens.filter(i=>i.st==='Sem cadastro'||i.st==='Sem data'); if(semCad.length) avisos.push(`Componente reserva não verificado: ${semCad.map(i=>i.nome+' ('+i.det+')').join('; ')}.`);
+  const faltaPq=m.P.comp.itens.filter(i=>i.st==='Falta'); if(faltaPq.length) avisos.push(`Componente reserva indisponível no parque para a data agendada: ${faltaPq.map(i=>i.nome+' ('+i.det+')').join('; ')}.`);
   const barras=MAT_PIL.map(([k,l])=>{ const x=m.P[k], w=m.cfg.pesos[k];
     return `<div class="mat-pl${x.tot?'':' off'}"><span>${l}<small>peso ${fmtH(w)}</small></span><i><em style="width:${x.pct===null?0:x.pct*100}%"></em></i><b>${x.pct===null?'–':Math.round(x.pct*100)+'%'}</b><small>${x.tot?(k==='acao'?`${fmtH(x.ok)} de ${fmtH(x.tot)} de peso`:`${x.ok} de ${x.tot} disponíveis`):'sem itens'}</small></div>`; }).join('');
   const bloq=m.bloq.length?`<div class="mat-bloq"><h4>Bloqueios: a parada não deve ser liberada com estes itens pendentes</h4><ul>${m.bloq.map(a=>`<li><b>${esc(a.acao||'(ação sem descrição)')}</b> <span class="count">· ${esc(a.ponto||'')}${a.resp?' · '+esc(a.resp):''}${a.previsto?' · previsto '+dmy(parse(a.previsto)):' · sem data prevista'} · ${[a.prioridade==='Crítica'?'prioridade Crítica':'',a.impacto==='SIM'?'impacto na parada':''].filter(Boolean).join(' e ')}</span></li>`).join('')}</ul></div>`:'';
@@ -3660,18 +3661,22 @@ function travaHtml(draft,r){
         <div><h5>Retornos de reparo previstos</h5>${lista(rets,e=>`<li>${esc(e.c.frota)} em ${dm(e.d)} (+${e.q})</li>`)}</div></div>
     </div>`; }).join('');
 }
-const trvdlg=$('trvdlg'); let trvUsar=null;
-function mostrarTrava(draft,r,onUsar){
-  $('trvBody').innerHTML=`<p>A troca do <b>${esc(draft.frota)}</b> não pode ser agendada para <b>${dmh(span(draft).a)}</b> porque, pelo parque reserva, não haverá componente disponível:</p>${travaHtml(draft,r)}
-    <p class="count">Regra: na troca sai 1 componente do parque; o retirado volta disponível após o TAT, contado do término previsto da troca. Disponível = Saldo disponível MRO + Tenda.</p>`;
+const trvdlg=$('trvdlg'); let trvUsar=null, trvForcar=null;
+function mostrarTrava(draft,r,onUsar,onForcar){
+  $('trvBody').innerHTML=`<p>A troca do <b>${esc(draft.frota)}</b> está sendo agendada para <b>${dmh(span(draft).a)}</b>, mas pelo parque reserva não haverá componente disponível:</p>${travaHtml(draft,r)}
+    <p class="count">Regra: na troca sai 1 componente do parque; o retirado volta disponível após o TAT, contado do término previsto da troca. Disponível = Saldo disponível MRO + Tenda.</p>
+    ${onForcar?'<p class="count">É possível agendar assim mesmo — o aviso de componente indisponível continua aparecendo no plano da troca até o parque normalizar.</p>':''}`;
   const livres=r.itens.filter(a=>a.min<0).map(a=>a.livre);
   const data=livres.every(Boolean)?new Date(Math.max(...livres.map(d=>d.getTime()))):null;
   trvUsar = data&&onUsar ? ()=>onUsar(data) : null;
+  trvForcar = onForcar||null;
   $('trvUsar').hidden=!trvUsar; if(trvUsar) $('trvUsar').textContent='Usar '+dm(data)+'/'+data.getFullYear();
+  $('trvForcar').hidden=!trvForcar;
   trvdlg.showModal();
 }
 $('trvOk').onclick=()=>trvdlg.close();
 $('trvUsar').onclick=()=>{ const f=trvUsar; trvdlg.close(); if(f) f(); };
+$('trvForcar').onclick=()=>{ const f=trvForcar; trvdlg.close(); if(f) f(); };
 /* quadro de disponibilidade dentro do formulário da troca */
 function draftDoForm(){
   return {...(editing||{}),id:editing?editing.id:'__novo',manual:editing?editing.manual:null,frota:$('fFrota').value,inicio:$('fIni').value,termino:$('fFim').value,componentes:getComps()};
@@ -3817,10 +3822,15 @@ function reagendar(c,d,origem){
   const old=c.inicio, oSt=statusOf(c); c.inicio=toDT(a); if(s.b) c.termino=toDT(new Date(a.getTime()+dur)); futureRule(c);
   log(c,'Reprogramada',`Início: ${fmtDT(old)} → ${fmtDT(c.inicio)} (${origem})`+(statusOf(c)!==oSt?`; status: ${STATUS[oSt].label} → ${STATUS[statusOf(c)].label}`:'')); save(); refresh();
 }
-function travaMov(c,backup){ // após mudar datas de c: verifica e desfaz se não houver componente
+function travaMov(c,backup){ // após mudar datas de c: verifica e desfaz se não houver componente (a menos que o usuário confirme mesmo assim)
   const chk=checarParque(c); if(chk.ok) return false;
   const dr=JSON.parse(JSON.stringify(c)); Object.assign(c,backup); refresh();
-  mostrarTrava(dr,chk,d=>reagendar(c,d,'primeira data possível pelo parque reserva')); return true;
+  mostrarTrava(dr,chk,
+    d=>reagendar(c,d,'primeira data possível pelo parque reserva'),
+    ()=>{ Object.assign(c,{inicio:dr.inicio,termino:dr.termino,manual:dr.manual});
+      log(c,'Agendamento forçado',`Movida no quadro para ${c.inicio?fmtDT(c.inicio):'sem data'} mesmo sem componente disponível no parque reserva (confirmado pelo usuário).`);
+      save(); refresh(); });
+  return true;
 }
 function moveCard(id,from,target){
   const c=findCard(id); if(!c||from===target) return;
@@ -3956,6 +3966,18 @@ function openDlg(id,weekKey){
   togglePm(); renderFormParque(); dlg.showModal(); $('fFrota').focus();
 }
 $('cancel').onclick=()=>dlg.close();
+function prosseguirSalvarTroca(data,forcado){
+  let card;
+  if(editing){ const before=JSON.parse(JSON.stringify(editing)), oSt=statusOf(editing), changed=editing.inicio!==data.inicio;
+    Object.assign(editing,data); if(changed) futureRule(editing); card=editing;
+    let d=diffOf(CAMPOS,before,editing); if(statusOf(editing)!==oSt) d+=`; status: ${STATUS[oSt].label} → ${STATUS[statusOf(editing)].label}`;
+    if(d) log(editing,'Dados alterados',d.replace(/^; /,''));
+  } else { card={id:uid(),manual:null,acoes:[],...data}; state.cards.push(card);
+    log(card,'Troca criada',[card.inicio?'Início '+fmtDT(card.inicio):'Sem data',compText(card)].filter(Boolean).join('; ')); }
+  if(forcado) log(card,'Agendamento forçado',`Agendada para ${card.inicio?fmtDT(card.inicio):'sem data'} mesmo sem componente disponível no parque reserva (confirmado pelo usuário).`);
+  if(!card.acoes.length){ const n=applyModels(card,!editing); if(n) toast(`Plano criado com ${n} ações do modelo.`); }
+  save(); dlg.close(); refresh();
+}
 $('save').onclick=()=>{
   const frota=$('fFrota').value;
   if(!frota){ $('fErr').textContent='Selecione a frota do caminhão.'; $('fFrota').focus(); return; }
@@ -3969,17 +3991,13 @@ $('save').onclick=()=>{
   const draftChk={...(editing||{}),...data,id:editing?editing.id:'__novo',manual:editing?editing.manual:null};
   if(editing&&editing.inicio!==ini&&parseDT(ini)>new Date()) draftChk.manual=null;
   if(mudouAgenda(editing,draftChk)){ const chk=checarParque(draftChk);
-    if(!chk.ok){ mostrarTrava(draftChk,chk,d=>{ const s0=span(draftChk), dur=s0.b?s0.b-s0.a:0; const a=new Date(d); a.setHours(s0.a.getHours(),s0.a.getMinutes(),0,0);
-        $('fIni').value=toDT(a); if(s0.b) $('fFim').value=toDT(new Date(a.getTime()+dur)); renderFormParque(); }); return; } }
-  let card;
-  if(editing){ const before=JSON.parse(JSON.stringify(editing)), oSt=statusOf(editing), changed=editing.inicio!==ini;
-    Object.assign(editing,data); if(changed) futureRule(editing); card=editing;
-    let d=diffOf(CAMPOS,before,editing); if(statusOf(editing)!==oSt) d+=`; status: ${STATUS[oSt].label} → ${STATUS[statusOf(editing)].label}`;
-    if(d) log(editing,'Dados alterados',d.replace(/^; /,''));
-  } else { card={id:uid(),manual:null,acoes:[],...data}; state.cards.push(card);
-    log(card,'Troca criada',[card.inicio?'Início '+fmtDT(card.inicio):'Sem data',compText(card)].filter(Boolean).join('; ')); }
-  if(!card.acoes.length){ const n=applyModels(card,!editing); if(n) toast(`Plano criado com ${n} ações do modelo.`); }
-  save(); dlg.close(); refresh();
+    if(!chk.ok){
+      mostrarTrava(draftChk,chk,
+        d=>{ const s0=span(draftChk), dur=s0.b?s0.b-s0.a:0; const a=new Date(d); a.setHours(s0.a.getHours(),s0.a.getMinutes(),0,0);
+          $('fIni').value=toDT(a); if(s0.b) $('fFim').value=toDT(new Date(a.getTime()+dur)); renderFormParque(); },
+        ()=>prosseguirSalvarTroca(data,true));
+      return; } }
+  prosseguirSalvarTroca(data,false);
 };
 $('del').onclick=()=>{
   if(!editing) return;

@@ -2,6 +2,16 @@
 
 Histórico de alterações relevantes no app. Entradas novas sempre no topo. Ver `CLAUDE.md` para o contexto de arquitetura/regras por trás de cada mudança.
 
+## 2026-11-24 — Permite agendar mesmo sem componente disponível no parque reserva (com aviso permanente)
+
+Pedido: a trava do parque reserva (TAT), que bloqueia agendar/mover uma troca quando não há componente disponível, estava sem saída além de usar outra data — o usuário precisa poder confirmar o agendamento mesmo assim, mas o aviso de indisponibilidade não pode desaparecer depois.
+
+- O diálogo de indisponibilidade (`trvdlg`) ganhou um terceiro botão, "Agendar mesmo assim", ao lado de "Usar [data]" e "Entendi" — confirma o agendamento com a data originalmente escolhida (sem trocar nada) e grava um registro "Agendamento forçado" no histórico da troca, pra auditoria.
+- Vale tanto pra salvar uma troca nova/editada (`$('save').onclick`) quanto pra arrastar no quadro (`travaMov`) — os dois caminhos que já mostravam esse aviso.
+- **O aviso continua aparecendo depois**: não foi criada nenhuma flag de "ignorado" no card — a checagem do parque é recalculada a cada vez que a tela é desenhada, então o pilar "Componente reserva" continua marcando o item como indisponível, e agora também aparece na caixa de avisos do topo do Plano de ação (visível mesmo com o pilar fechado), até o parque normalizar de verdade.
+- Arquivos: `index.html` (`mostrarTrava`, `travaMov`, `$('save').onclick`/`prosseguirSalvarTroca`, `maturidade`/`matHtml`, HTML do `#trvdlg`). Sem mudança de schema nem de Edge Function.
+- Validado com Playwright: zerei o estoque de um componente no parque, tentei agendar uma troca pra uma data sem disponibilidade (clique real no botão "Novo card" → preencher → Salvar), confirmei que o diálogo abre e que "Agendar mesmo assim" salva a troca com a data escolhida e grava o histórico; testei também o caminho do arrastar no quadro (`travaMov`); e confirmei que o aviso aparece na caixa de avisos do Plano de ação mesmo com o pilar "Componente reserva" fechado.
+
 ## 2026-11-24 — Filtro e imagens nos pilares da Maturidade, Carteira de Backlog recolhível, e todos os blocos do Plano de ação começam fechados
 
 Pedido: (1) filtro em Material de Instalação, Recursos e Insumos (pilares da Maturidade, dentro do Plano de ação); (2) botão de minimizar também nas duas listas da Carteira de Backlog; (3) as imagens cadastradas no Padrão de recursos (peça/recurso/insumo) aparecerem também no Plano de ação; (4) todos os blocos do Plano de ação devem começar recolhidos, só abrindo se o usuário clicar.
